@@ -1,0 +1,35 @@
+/* Hallmark · genre: modern-minimal · theme: Cobalt (sistem terkunci, dipakai landing + dashboard + blueprint) */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { overflow-x: clip; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: 4.5rem; }
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink-2);
+  font: 400 var(--text-base)/1.6 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4 { font-family: var(--font-display); font-style: normal; color: var(--color-ink); margin: 0; overflow-wrap: anywhere; min-width: 0; }
+p { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+img, svg { display: block; max-width: 100%; }
+:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+::selection { background: var(--color-accent-soft); color: var(--color-ink); }
+code { font-family: var(--font-mono); font-size: 0.9em; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.skip-link {
+  position: absolute; left: var(--space-sm); top: -4rem; z-index: 100;
+  background: var(--color-ink); color: var(--color-paper);
+  padding: var(--space-2xs) var(--space-sm); border-radius: var(--radius-md); text-decoration: none;
+}
+.skip-link:focus-visible { top: var(--space-sm); }
+
+.splash { min-height: 100vh; background: var(--color-paper); }
+.setup { max-width: 36rem; margin: 20vh auto 0; padding: 0 var(--gutter); display: grid; gap: var(--space-sm); }
+.setup h1 { font-size: var(--text-2xl); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; scroll-behavior: auto !important; }
+}
