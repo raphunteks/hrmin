@@ -41,6 +41,7 @@ const USERS = [
     extra: { commission_rate: 0.3, nik: "7371990101800009" } },
   { email: "kasir.klinik@demo.harum.in", role: "staff", full_name: "Kasir Klinik Demo", tenant_id: T2, branch_id: "00000000-0000-0000-0000-0000000000b3" },
   { email: "owner.klinik@demo.harum.in", role: "owner", full_name: "Owner Klinik Demo", tenant_id: T2, branch_id: null },
+  { email: "member@demo.harum.in", role: "member", full_name: "Hasan (Member Demo)", tenant_id: T1, branch_id: null, customer_phone: "081100000301" },
 ];
 
 // ── 2 · HTTP ──
@@ -99,10 +100,16 @@ for (const u of USERS) {
     state = "diperbarui";
   } else die(`${u.email}: pembuatan akun Auth gagal → ${c.status} ${errText(c)}`);
 
+  const extra = { ...(u.extra ?? {}) };
+  if (u.role === "member" && u.customer_phone) {
+    const cust = await http(`/rest/v1/customers?tenant_id=eq.${u.tenant_id}&phone=eq.${u.customer_phone}&select=id`);
+    if (cust.ok && cust.data?.[0]?.id) extra.customer_id = cust.data[0].id;
+  }
+
   must(await http("/rest/v1/profiles?on_conflict=id", {
     method: "POST", headers: { ...svc, Prefer: "resolution=merge-duplicates,return=minimal" },
     body: { id, email: u.email, role: u.role, full_name: u.full_name, tenant_id: u.tenant_id, branch_id: u.branch_id,
-      is_active: true, deactivated_at: null, deactivated_by: null, deactivation_reason: null, ...(u.extra ?? {}) },
+      is_active: true, deactivated_at: null, deactivated_by: null, deactivation_reason: null, ...extra },
   }), `${u.email}: menyimpan profil`);
   if (u.pin) must(await http("/rest/v1/rpc/admin_set_pin", { method: "POST", body: { p_user: id, p_pin: u.pin } }), `${u.email}: mengatur PIN`);
   made.push({ ...u, id, state });
