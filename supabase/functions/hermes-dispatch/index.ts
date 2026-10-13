@@ -17,14 +17,30 @@ async function deliver(db: ReturnType<typeof admin>, ev: Ev) {
   // Klaim: hanya event 'queued' yang dikirim, sekali.
   const { data: claimed } = await db.from("hermes_events").update({ status: "sending" }).eq("id", ev.id).eq("status", "queued").select().maybeSingle();
   if (!claimed) return { id: ev.id, skipped: true };
-  const { data: integ } = await db.from("tenant_integrations").select("hermes_enabled").eq("tenant_id", ev.tenant_id).maybeSingle();
+  const { data: integ } = await db.from("tenant_integrations").select("hermes_enabled, whatsapp_owner, whatsapp_gm").eq("tenant_id", ev.tenant_id).maybeSingle();
   const hook = Deno.env.get("HERMES_WEBHOOK_URL");
   let status = "simulated";
   if (hook && integ?.hermes_enabled) {
+    let resolvedTarget = ev.target;
+    if (/owner/i.test(ev.target) && integ?.whatsapp_owner) {
+      resolvedTarget = integ.whatsapp_owner;
+    } else if (/gm/i.test(ev.target) && integ?.whatsapp_gm) {
+      resolvedTarget = integ.whatsapp_gm;
+    }
     const res = await fetch(hook, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${Deno.env.get("HERMES_TOKEN") ?? ""}` },
-      body: JSON.stringify({ tenant_id: ev.tenant_id, channel: ev.channel, target: ev.target, kind: ev.kind, message: ev.message, payload: ev.payload }),
+      body: JSON.stringify({
+        tenant_id: ev.tenant_id,
+        channel: ev.channel,
+        target: resolvedTarget,
+        original_target: ev.target,
+        kind: ev.kind,
+        message: ev.message,
+        payload: ev.payload,
+        whatsapp_owner: integ?.whatsapp_owner,
+        whatsapp_gm: integ?.whatsapp_gm
+      }),
     }).catch(() => null);
     status = res?.ok ? "sent" : "failed";
   }
