@@ -41,7 +41,7 @@ const USERS = [
     extra: { commission_rate: 0.3, nik: "7371990101800009" } },
   { email: "kasir.klinik@demo.harum.in", role: "staff", full_name: "Kasir Klinik Demo", tenant_id: T2, branch_id: "00000000-0000-0000-0000-0000000000b3" },
   { email: "owner.klinik@demo.harum.in", role: "owner", full_name: "Owner Klinik Demo", tenant_id: T2, branch_id: null },
-  { email: "member@demo.harum.in", role: "member", full_name: "Hasan (Member Demo)", tenant_id: T1, branch_id: null, customer_phone: "081100000301" },
+  { email: "member@demo.harum.in", role: "member", full_name: "Hasan (Member Demo)", tenant_id: T1, branch_id: null, customer_phone: "085256739684" },
 ];
 
 // ── 2 · HTTP ──
