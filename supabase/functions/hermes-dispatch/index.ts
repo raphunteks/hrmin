@@ -5,7 +5,9 @@
 //   1. Database Webhook INSERT pada public.hermes_events  → header x-webhook-secret = WEBHOOK_SECRET
 //   2. Cron (pg_cron + pg_net) tiap menit                  → header x-cron-secret = CRON_SECRET, menguras antrean
 //   3. Pengguna Owner/GM (fitur 2) mengirim pesan manual   → JWT pengguna, dibatasi 20 pesan/menit (Upstash)
-// Tanpa HERMES_WEBHOOK_URL → status 'simulated' (tidak ada pesan keluar).
+// @ts-nocheck
+declare const Deno: any;
+
 import { json, corsHeaders } from "../_shared/cors.ts";
 import { userContext, hasPerm, admin } from "../_shared/auth.ts";
 import { rateLimit } from "../_shared/redis.ts";
@@ -48,7 +50,7 @@ async function deliver(db: ReturnType<typeof admin>, ev: Ev) {
   return { id: ev.id, status };
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   const db = admin();
   const body = await req.json().catch(() => ({}));

@@ -7,14 +7,16 @@
 //   POST { action: "verify",  tenant_slug, phone, device_id, code, name? }  →  { token_hash }  (klien: supabase.auth.verifyOtp)
 //
 // Secret: HERMES_WEBHOOK_URL, HERMES_TOKEN (opsional), MEMBER_OTP_SIMULATE=1 (hanya untuk pengembangan: kode dikembalikan di respons).
-// Tanpa WhatsApp aktif (URL kosong atau tenant_integrations.hermes_enabled=false) dan tanpa MEMBER_OTP_SIMULATE → 503.
+// @ts-nocheck
+declare const Deno: any;
+
 import { json, corsHeaders } from "../_shared/cors.ts";
 import { admin } from "../_shared/auth.ts";
 import { rateLimit } from "../_shared/redis.ts";
 
 const clean = (v: unknown, max = 200) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   if (req.method !== "POST") return json(req, { error: "Method tidak didukung" }, 405);
 
