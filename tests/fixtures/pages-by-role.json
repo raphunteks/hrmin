@@ -141,5 +141,6 @@
     "/app/slip",
     "/app/tukar-shift",
     "/app/akses"
-  ]
+  ],
+  "member": []
 }

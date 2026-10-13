@@ -4,6 +4,7 @@ import { can, permOf } from "../lib/rbac.js";
 import { seedClinic, createClinic, CLINIC_RULES } from "./demoClinic.js";
 import { createAccess, ACCESS_RULES } from "./demoAccess.js";
 import { createGrowth } from "./demoGrowth.js";
+import { createMemberRpc } from "./demoMember.js";
 
 const T1 = "t1", B0 = "b0", B1 = "b1", B2 = "b2";
 const ACC = {
@@ -104,7 +105,7 @@ export function createOps(ctx) {
   const nowIso = () => new Date().toISOString();
   const today = () => nowIso().slice(0, 10);
   const err = (m) => { throw new Error(m); };
-  const need = (f, a) => { if (!can(role(), f, a)) err(`Akses ditolak: peran ${role()} tidak punya aksi "${a}" pada fitur ${f}`); };
+  const need = (f, a) => { if (role() === "member") err("Akses ditolak: Member tidak memakai fungsi operasional"); if (!can(role(), f, a)) err(`Akses ditolak: peran ${role()} tidak punya aksi "${a}" pada fitur ${f}`); };
   const scope = (f) => permOf(role(), f)?.scope ?? null;
   const tenantOk = (t) => role() === "superadmin" || t === user().tenant_id;
   // Sama dengan branch_ok() di SQL (Fase 0): GM tanpa penugasan = semua cabang; Staff/Dokter = cabang utama + penugasan.
@@ -203,7 +204,33 @@ export function createOps(ctx) {
   const tenantOf = (p) => (role() === "superadmin" ? p || err("Superadmin harus memilih tenant") : user().tenant_id);
 
   // ── Akses generik dengan RLS tiruan ──
+  // Kebijakan RESTRICTIVE Member (sama dengan supabase/migrations/…022_member_isolation.sql): tolak semua, buka "milik sendiri".
+  const normPhone = (p) => (String(p ?? "").replace(/[^0-9+]/g, "") || null);
+  const myCustomer = () => (db.customers ?? []).find((c) => c.id === user()?.customer_id) ?? null;
+  const ordersOfMine = (orderId) => {
+    const c = myCustomer();
+    const o = (db.orders ?? []).find((x) => x.id === orderId);
+    return !!(c && o && o.tenant_id === c.tenant_id && normPhone(o.customer_phone) && normPhone(o.customer_phone) === normPhone(c.phone));
+  };
+  function memberVisible(table, row) {
+    const c = myCustomer();
+    if (!c || row.tenant_id !== user().tenant_id && table !== "profiles") return false;
+    switch (table) {
+      case "profiles": return row.id === user().id;
+      case "customers": return row.id === c.id;
+      case "orders": return ordersOfMine(row.id);
+      case "order_items":
+      case "payments": return ordersOfMine(row.order_id);
+      case "queue_entries": return !!normPhone(row.phone) && normPhone(row.phone) === normPhone(c.phone);
+      case "products":
+      case "branches": return true;
+      default: return false;
+    }
+  }
+
   function visible(table, row) {
+    if (role() === "member") return memberVisible(table, row);
+    if (table === "profiles" && row.role === "member") return false; // Master Karyawan tidak memuat Member
     if (ACCESS_RULES[table]) return access.visible(table, row);
     if (G().TABLES.includes(table)) return G().visible(table, row);
     const r = TABLE_RULES[table];
@@ -222,6 +249,10 @@ export function createOps(ctx) {
     return true;
   }
 
+  // Fungsi yang boleh dipanggil Member. Bertambah seiring tiket 05–07 (masuk, pesan, reservasi).
+  const MEMBER_FN = createMemberRpc({ db, user, onDeleted: () => ctx.onMemberDeleted?.() });
+  const MEMBER_RPC = new Set(["my_access_state", "touch_presence", "member_brand", "member_home", "member_update_profile", "member_card_token", "member_export", "member_delete_account"]);
+
   const api = {
     async list(table, { eq = {}, inList, order, limit } = {}) {
       if (table === "journal_entries") {
@@ -238,6 +269,7 @@ export function createOps(ctx) {
       return structuredClone(limit ? rows.slice(0, limit) : rows);
     },
     async insert(table, row) {
+      if (role() === "member") err("Akses ditolak: Member tidak menulis langsung ke tabel");
       const cw = clinic.write.insert[table];
       if (cw) {
         const r = { id: id(), created_at: nowIso(), ...row };
@@ -265,6 +297,7 @@ export function createOps(ctx) {
       return done(structuredClone(r), [table]);
     },
     async update(table, rid, patch, key = "id") {
+      if (role() === "member") err("Akses ditolak: Member tidak menulis langsung ke tabel");
       const cu = clinic.write.update[table];
       if (cu) {
         const r = T(table).find((x) => x[key] === rid);
@@ -300,6 +333,7 @@ export function createOps(ctx) {
       return done(structuredClone(r), [table]);
     },
     async remove(table, rid) {
+      if (role() === "member") err("Akses ditolak: Member tidak menulis langsung ke tabel");
       const cr = clinic.write.remove[table];
       if (cr) {
         const r = T(table).find((x) => x.id === rid);
@@ -320,6 +354,9 @@ export function createOps(ctx) {
     async lockTable() { return { locked: true }; },
 
     async rpc(name, a = {}) {
+      if (role() === "member" && !MEMBER_RPC.has(name)) err("Akses ditolak: Member tidak memakai fungsi operasional");
+      if (name === "resolve_member_card") { need(15, "r"); return MEMBER_FN.resolve_member_card(a); }
+      if (role() === "member" && MEMBER_FN[name]) { const r = MEMBER_FN[name](a); persist(); return done(structuredClone(r), []); }
       const fn = RPC[name] ?? clinic.RPC[name] ?? access.RPC[name] ?? G().RPC[name];
       if (!fn) err(`Fungsi ${name} tidak ada`);
       return fn(a);

@@ -8,6 +8,7 @@ import "../styles/dashboard.css";
 const DEV_ACCOUNTS = [
   ["superadmin@demo.harum.in", "superadmin"], ["owner@demo.harum.in", "owner"], ["gm@demo.harum.in", "gm"], ["staff@demo.harum.in", "staff"],
   ["dokter@demo.harum.in", "dokter"], ["kasir.klinik@demo.harum.in", "staff", "Kasir klinik"], ["owner.klinik@demo.harum.in", "owner", "Owner klinik"],
+  ["member@demo.harum.in", "member"],
 ];
 
 export default function Login() {
@@ -19,7 +20,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (profile) navigate("/app", { replace: true });
+    if (profile) navigate(profile.role === "member" ? "/m" : "/app", { replace: true });
   }, [profile, navigate]);
 
   const submit = async (e, creds) => {

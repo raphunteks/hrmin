@@ -7,3 +7,6 @@ verify_jwt = false
 
 [functions.satusehat-sync]
 verify_jwt = false
+
+[functions.member-auth]
+verify_jwt = false

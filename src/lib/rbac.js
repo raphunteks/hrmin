@@ -1,10 +1,13 @@
-import { MATRIX, ROLES, parseLabel } from "./rbac-matrix.js";
+import { MATRIX, ALL_ROLES, memberLabel, parseLabel } from "./rbac-matrix.js";
 
 // Indeks: PERMS[role][feature] = { c, r, u, d, a, q, scope, pin, label }
 export const PERMS = Object.fromEntries(
-  ROLES.map((role, ri) => [
+  ALL_ROLES.map((role, ri) => [
     role,
-    Object.fromEntries(MATRIX.map((row) => [row[0], { ...parseLabel(row[2 + ri]), label: row[2 + ri] }])),
+    Object.fromEntries(MATRIX.map((row) => {
+      const label = role === "member" ? memberLabel(row[0]) : row[2 + ri];
+      return [row[0], { ...parseLabel(label), label }];
+    })),
   ])
 );
 

@@ -53,6 +53,17 @@ export function PaymentModal({ open, order, onClose, onPaid }) {
   const [rows, setRows] = useState([]);
   const [phone, setPhone] = useState("");
   useEffect(() => setPhone(order?.customer_phone ?? ""), [order?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [cardTok, setCardTok] = useState("");
+  const [cardInfo, setCardInfo] = useState(null);
+  const scan = useAction();
+  const scanCard = () =>
+    scan.run(async () => {
+      const r = await api.rpc("resolve_member_card", { p_token: cardTok.trim() });
+      setPhone(r.phone ?? "");
+      setCardInfo(r);
+      setCardTok("");
+      return r;
+    });
   const [split, setSplit] = useState(2);
   const [receipt, setReceipt] = useState(null);
   const a = useAction();
@@ -206,6 +217,12 @@ export function PaymentModal({ open, order, onClose, onPaid }) {
             <div className={remaining > 0 ? "is-warn" : ""}><dt>{remaining > 0 ? "Kurang" : "Kembalian"}</dt><dd>{rupiah(remaining > 0 ? remaining : change)}</dd></div>
           </dl>
           {change > cash && <p className="d-field__error">Kembalian hanya bisa dari pembayaran tunai.</p>}
+          <Field label="Kartu Member (tempel/pindai kode, opsional)" id="pay-card">
+            <input id="pay-card" autoComplete="off" placeholder="HIN1…" value={cardTok} onChange={(e) => setCardTok(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && cardTok.trim()) { e.preventDefault(); scanCard(); } }} />
+          </Field>
+          <button type="button" className="d-btn" disabled={!cardTok.trim() || scan.busy} onClick={scanCard}>Cek kartu</button>
+          {cardInfo && <p className="d-text">Member: <strong>{cardInfo.name}</strong> · {cardInfo.points} poin</p>}
+          <Feedback a={scan} />
           <Field label="WhatsApp pelanggan (poin & struk digital, opsional)" id="pay-wa">
             <input id="pay-wa" inputMode="tel" placeholder="08…" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, ""))} />
           </Field>

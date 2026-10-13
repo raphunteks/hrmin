@@ -5,6 +5,7 @@ import { PageHead, Panel, Stat, Loading, ErrorNote, Badge, Modal, Field, useAsyn
 import { useAction, Feedback, useLive } from "../../ops.jsx";
 import { ServiceTabs } from "./shared.jsx";
 import { ROLE_LABEL } from "../../../lib/rbac-matrix.js";
+import BrandingForm from "./BrandingForm.jsx";
 
 const LAYER_BADGE = {
   1: ["Lapis 1 · Default Toko", "accent"],
@@ -16,6 +17,7 @@ const LAYER_BADGE = {
 export default function PolicyBuilder() {
   const { api, tenantId, role } = useAuth();
   const a = useAction();
+  const [subTab, setSubTab] = useState("policies"); // "policies" | "branding"
 
   const r = useAsync(async () => {
     const [policies, branches] = await Promise.all([
@@ -89,15 +91,38 @@ export default function PolicyBuilder() {
     <>
       <ServiceTabs />
       <PageHead
-        eyebrow="Fase 1.4 · Kebijakan Berjenjang"
-        title="Policy Builder 3 Lapis"
-        desc="Atur hierarki kebijakan mitigasi fraud dan kontrol operasional. Aturan dievaluasi berjenjang: Lapis 3 (Peran) ➔ Lapis 2 (Cabang) ➔ Lapis 1 (Toko)."
-        actions={<button type="button" className="d-btn d-btn--primary" onClick={() => openForm(null)}>+ Tambah Aturan Kebijakan</button>}
+        eyebrow={subTab === "branding" ? "Fase 2 · Portal Pelanggan" : "Fase 1.4 · Kebijakan Berjenjang"}
+        title={subTab === "branding" ? "Identitas Merek & Portal Member" : "Policy Builder 3 Lapis"}
+        desc={subTab === "branding" ? "Atur nama merek, warna aksen, logo, dan pesan sambutan untuk portal digital Member di /m." : "Atur hierarki kebijakan mitigasi fraud dan kontrol operasional. Aturan dievaluasi berjenjang: Lapis 3 (Peran) ➔ Lapis 2 (Cabang) ➔ Lapis 1 (Toko)."}
+        actions={subTab === "policies" ? <button type="button" className="d-btn d-btn--primary" onClick={() => openForm(null)}>+ Tambah Aturan Kebijakan</button> : null}
       />
 
-      <Feedback a={a} />
+      {["owner", "superadmin"].includes(role) && (
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem", borderBottom: "1px solid var(--d-border)", paddingBottom: "0.75rem" }}>
+          <button
+            type="button"
+            className={`d-btn ${subTab === "policies" ? "d-btn--primary" : "d-btn--ghost"}`}
+            onClick={() => setSubTab("policies")}
+          >
+            🛡️ Kebijakan Operasional (3 Lapis)
+          </button>
+          <button
+            type="button"
+            className={`d-btn ${subTab === "branding" ? "d-btn--primary" : "d-btn--ghost"}`}
+            onClick={() => setSubTab("branding")}
+          >
+            🎨 Merek & Portal Member (/m)
+          </button>
+        </div>
+      )}
 
-      {r.loading ? <Loading /> : r.error ? <ErrorNote error={r.error} onRetry={r.reload} /> : (
+      {subTab === "branding" ? (
+        <BrandingForm />
+      ) : (
+        <>
+          <Feedback a={a} />
+
+          {r.loading ? <Loading /> : r.error ? <ErrorNote error={r.error} onRetry={r.reload} /> : (
         <>
           <section className="d-grid d-grid--4" aria-label="Ringkasan Kebijakan">
             <Stat title="Total Aturan Aktif" value={policies.length} note="Di seluruh hierarki" tone="accent" />
@@ -191,6 +216,8 @@ export default function PolicyBuilder() {
               </table>
             </div>
           </Panel>
+        </>
+      )}
         </>
       )}
 

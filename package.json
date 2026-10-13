@@ -11,7 +11,8 @@
     "secret:scan": "node scripts/secret-scan.mjs",
     "gen:seed": "node scripts/gen-seed.mjs",
     "demo:users": "node --env-file=.env.local scripts/create-demo-users.mjs",
-    "test": "node --test tests/",
+    "test": "node --test \"tests/*.test.mjs\"",
+    "test:sql": "node scripts/test-sql.mjs",
     "test:rls": "npm run db:audit",
     "db:doctor": "node --env-file=.env.local scripts/db.mjs doctor",
     "db:migrate": "node --env-file=.env.local scripts/db.mjs migrate",
@@ -22,6 +23,8 @@
     "db:wipe": "node --env-file=.env.local scripts/db.mjs wipe",
     "setup:demo": "npm run db:setup && npm run demo:users",
     "test:rls:psql": "sh -c 'set -a; . ./.env.local; set +a; psql \"$DATABASE_URL_DIRECT\" -v ON_ERROR_STOP=1 -f supabase/tests/rls_audit.sql'",
+    "gen:canonical": "node scripts/gen-canonical.mjs",
+    "fn:audit": "node scripts/fn-audit.mjs",
     "gen:bootstrap": "node scripts/gen-bootstrap.mjs",
     "supabase:create": "node --env-file=.env.local scripts/supabase-create.mjs"
   },

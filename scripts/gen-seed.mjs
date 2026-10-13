@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { MATRIX, ROLES, parseLabel } from "../src/lib/rbac-matrix.js";
+import { MATRIX, ROLES, MEMBER_ACCESS, memberLabel, parseLabel } from "../src/lib/rbac-matrix.js";
 import * as bab1 from "../supabase/blueprint/bab1.js";
 import * as bab2 from "../supabase/blueprint/bab2.js";
 import * as bab3 from "../supabase/blueprint/bab3.js";
@@ -30,6 +30,23 @@ writeFileSync(
 truncate public.rbac_matrix;
 insert into public.rbac_matrix (feature, feature_name, role, label, can_create, can_read, can_update, can_delete, can_approve, can_request, scope) values
 ${rows.join(",\n")};
+`
+);
+
+// 1a · Peran Member (L5): baris tambahan, matriks asli tidak disentuh
+const mrows = MATRIX.map(([no, name]) => {
+  const label = memberLabel(no);
+  const p = parseLabel(label);
+  return `  (${no}, ${q(name)}, 'member', ${q(label)}, ${p.c}, ${p.r}, ${p.u}, ${p.d}, ${p.a}, ${p.q}, ${q(p.scope)})`;
+});
+writeFileSync(
+  join(root, "supabase/migrations/20261011000021_rbac_member_seed.sql"),
+  `-- AUTO-GENERATED oleh scripts/gen-seed.mjs dari MEMBER_ACCESS di src/lib/rbac-matrix.js — jangan edit manual.
+-- Peran Member (L5): ${mrows.length} baris tambahan. Matriks asli 20×5 (migrasi 4) tidak diubah.
+insert into public.rbac_matrix (feature, feature_name, role, label, can_create, can_read, can_update, can_delete, can_approve, can_request, scope) values
+${mrows.join(",\n")}
+on conflict (feature, role) do update set label = excluded.label, can_create = excluded.can_create, can_read = excluded.can_read,
+  can_update = excluded.can_update, can_delete = excluded.can_delete, can_approve = excluded.can_approve, can_request = excluded.can_request, scope = excluded.scope;
 `
 );
 

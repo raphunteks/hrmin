@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { MATRIX, ROLES, parseLabel } from "../src/lib/rbac-matrix.js";
+import { MATRIX, ROLES, ALL_ROLES, MEMBER_ACCESS, memberLabel, parseLabel } from "../src/lib/rbac-matrix.js";
 import { can } from "../src/lib/rbac.js";
 import { PAGES } from "../src/app/pages.js";
 
@@ -48,10 +48,35 @@ test("setiap halaman: gate berupa fungsi dan tidak melebihi izin matriks bagi pe
 
 test("daftar halaman per peran sama dengan snapshot (ubah snapshot hanya dengan sengaja)", () => {
   const golden = JSON.parse(readFileSync(new URL("./fixtures/pages-by-role.json", import.meta.url), "utf8"));
-  for (const r of ROLES) assert.deepEqual(PAGES.filter((p) => p.gate(r)).map((p) => p.path), golden[r], `halaman untuk ${r}`);
+  for (const r of ALL_ROLES) assert.deepEqual(PAGES.filter((p) => p.gate(r)).map((p) => p.path), golden[r], `halaman untuk ${r}`);
 });
 
 test("pages.js tidak membandingkan peran secara langsung (pakai is()/can()/permOf())", () => {
   const src = readFileSync(new URL("../src/app/pages.js", import.meta.url), "utf8");
   assert.doesNotMatch(src, /\br\s*(===|!==)\s*"/);
+});
+
+test("Member (L5): seed SQL migrasi 21 identik dengan MEMBER_ACCESS, matriks asli tidak berubah", () => {
+  const msql = readFileSync(new URL("../supabase/migrations/20261011000021_rbac_member_seed.sql", import.meta.url), "utf8");
+  const rows = new Map();
+  for (const line of msql.split("\n")) { const m = ROW.exec(line); if (m) rows.set(Number(m[1]), { label: m[4].replace(/''/g, "'"), flags: m.slice(5, 11).map((x) => x === "true"), scope: m[11] === "null" ? null : m[11].slice(1, -1) }); }
+  assert.equal(rows.size, 20);
+  for (const row of MATRIX) {
+    const p = parseLabel(memberLabel(row[0]));
+    const s = rows.get(row[0]);
+    assert.ok(s, `fitur ${row[0]}`);
+    assert.equal(s.label, memberLabel(row[0]));
+    assert.deepEqual(s.flags, [p.c, p.r, p.u, p.d, p.a, p.q]);
+    assert.equal(s.scope, p.scope);
+  }
+  assert.equal(ROLES.length, 5, "matriks asli tetap 5 peran");
+  for (const f of Object.keys(MEMBER_ACCESS)) assert.ok(MATRIX.some((r) => r[0] === Number(f)), `fitur ${f} ada`);
+});
+
+test("Member tidak pernah menerima Approval, Request, atau akses Konfigurasi/Laporan/Keuangan", () => {
+  for (const [f] of MATRIX) {
+    const p = parseLabel(memberLabel(f));
+    assert.equal(p.a || p.q, false, `fitur ${f}`);
+  }
+  for (const f of [1, 2, 4, 6, 9, 10, 11, 12, 13, 14, 16, 19, 20]) assert.equal(memberLabel(f), "-", `fitur ${f} harus "-"`);
 });

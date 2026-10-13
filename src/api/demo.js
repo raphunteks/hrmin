@@ -1,6 +1,7 @@
 // Adapter DEMO: meniru skema & RLS Supabase di memori browser, untuk mencoba dashboard
 // tanpa kredensial. Hanya dimuat saat `npm run dev` tanpa .env (atau VITE_ALLOW_DEMO=1).
 // Semua angka di sini adalah DATA DEMO.
+import { createMemberAuth } from "./demoMember.js";
 import { can, permOf } from "../lib/rbac.js";
 import { iso, addDays } from "../lib/format.js";
 import { seedOps, createOps } from "./demoOps.js";
@@ -21,6 +22,9 @@ export const DEMO_USERS = [
   { id: "u4", email: "dokter@demo.harum.in", role: "dokter", full_name: "drg. Demo", tenant_id: T2, branch_id: B3, commission_rate: 0.3, nik: "7371990101800009" },
   { id: "u5", email: "kasir.klinik@demo.harum.in", role: "staff", full_name: "Kasir Klinik Demo", tenant_id: T2, branch_id: B3, label: "Kasir klinik" },
   { id: "u6", email: "owner.klinik@demo.harum.in", role: "owner", full_name: "Owner Klinik Demo", tenant_id: T2, branch_id: null, label: "Owner klinik" },
+  // Member (L5): terikat ke satu Pelanggan (cu1/cu2 di data demo). Masuk lewat Kode Masuk di dunia nyata; di demo cukup pilih akun.
+  { id: "um1", email: "member@demo.harum.in", role: "member", full_name: "Hasan (demo)", tenant_id: T1, branch_id: null, customer_id: "cu1", label: "Member" },
+  { id: "um2", email: "member2@demo.harum.in", role: "member", full_name: "Mega (demo)", tenant_id: T1, branch_id: null, customer_id: "cu2", label: "Member 2" },
 ];
 
 // ── RNG deterministik ──
@@ -92,6 +96,9 @@ function seed() {
       { id: "h3", tenant_id: T1, channel: "discord", target: "#alert-sistem", kind: "void_alert", message: "Permintaan void ORD-HARUM-9102 Rp 185.000 menunggu otorisasi.", status: "simulated", created_at: new Date(Date.now() - 2 * 3600e3).toISOString() },
       { id: "h4", tenant_id: T1, channel: "discord", target: "#laporan-harian", kind: "margin_drop", message: "Marjin kotor Cabang Panakkukang turun dibanding rata-rata 7 hari.", status: "simulated", created_at: new Date(Date.now() - 40 * 60e3).toISOString() },
     ],
+    tenant_branding: [
+      { tenant_id: T1, display_name: "Kopi Harum", accent_color: "#059669", logo_url: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=120", welcome_text: "Selamat datang di Kopi Harum! Kumpulkan poin dan nikmati promo eksklusif." }
+    ],
     audit: [],
     ...seedOps(DEMO_USERS),
   };
@@ -134,6 +141,9 @@ function load() {
     db = seed();
   }
   db.member_branches ??= [];
+  db.tenant_branding ??= [
+    { tenant_id: T1, display_name: "Kopi Harum", accent_color: "#059669", logo_url: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=120", welcome_text: "Selamat datang di Kopi Harum! Kumpulkan poin dan nikmati promo eksklusif." }
+  ];
   db.tenant_policies ??= [
     { id: "pol-1", tenant_id: T1, branch_id: null, role: null, max_discount_pct: 15, max_void_without_pin: 50000, operating_hours_start: "07:00:00", operating_hours_end: "23:00:00", geofence_radius_meters: 50, enforce_shift_lock: true, updated_at: ago(5) },
     { id: "pol-2", tenant_id: T1, branch_id: B2, role: null, max_discount_pct: 10, max_void_without_pin: 75000, operating_hours_start: "08:00:00", operating_hours_end: "22:00:00", geofence_radius_meters: 60, enforce_shift_lock: true, updated_at: ago(2) },
@@ -148,6 +158,8 @@ function load() {
   return db;
 }
 const O = () => (load(), ops);
+let _memberAuth;
+const memberAuth = () => (_memberAuth ??= createMemberAuth(load()));
 function persist() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(db));
@@ -170,6 +182,7 @@ const emit = () => listeners.forEach((cb) => cb(currentUser?.id ?? null));
 
 const role = () => currentUser?.role;
 function need(feature, action) {
+  if (currentUser?.role === "member") throw new Error("Akses ditolak: Member tidak memakai fungsi operasional");
   if (!currentUser || !can(role(), feature, action)) {
     throw new Error(`Akses ditolak: peran ${role() ?? "tamu"} tidak punya aksi "${action}" pada fitur ${feature}`);
   }
@@ -223,6 +236,27 @@ export const api = {
     try { sessionStorage.setItem(SESSION_KEY, u.id); } catch { /* abaikan */ }
     emit();
   },
+  /** Masuk Member (tiruan): kode dikembalikan di respons karena tidak ada WhatsApp (simulated: true). */
+  async memberRequestCode({ tenantSlug, phone, deviceId, consentData, consentMarketing }) {
+    const t = load().tenants.find((x) => x.slug === tenantSlug);
+    if (!t) throw new Error("Tenant tidak ditemukan");
+    const r = memberAuth().request({ tenantId: t.id, phone, device: deviceId, consentData, consentMarketing });
+    persist();
+    return { sent: false, simulated: true, dev_code: r.code, expires_at: r.expires_at };
+  },
+  async memberVerifyCode({ tenantSlug, phone, deviceId, code, name }) {
+    const t = load().tenants.find((x) => x.slug === tenantSlug);
+    if (!t) throw new Error("Tenant tidak ditemukan");
+    const v = memberAuth().verify({ tenantId: t.id, phone, code, device: deviceId });
+    persist();
+    if (!v.ok) { const e = new Error("Kode salah atau kedaluwarsa"); e.reason = v.reason; e.attempts_left = v.attempts_left ?? 0; throw e; }
+    const { profile, customer, is_new } = memberAuth().complete({ otpId: v.otp_id, name });
+    persist();
+    currentUser = { id: profile.id, email: profile.email, role: "member", full_name: profile.full_name, tenant_id: profile.tenant_id, branch_id: null, customer_id: customer.id };
+    try { sessionStorage.setItem(SESSION_KEY, currentUser.id); } catch { /* abaikan */ }
+    emit();
+    return { is_new, points: customer.points };
+  },
   async signOut() {
     currentUser = null;
     try { sessionStorage.removeItem(SESSION_KEY); } catch { /* abaikan */ }
@@ -256,6 +290,7 @@ export const api = {
     });
   },
   async listTenants() {
+    if (currentUser?.role === "member") throw new Error("Akses ditolak");
     const { tenants, plans } = load();
     const rows = isSA() ? tenants : tenants.filter((t) => t.id === currentUser.tenant_id);
     return delay(rows.map((t) => ({ ...t, plan: plans.find((p) => p.id === t.plan_id) ?? null })));
@@ -483,6 +518,48 @@ export const api = {
     persist();
     emitTable("tenant_policies");
     return delay(pol);
+  },
+
+  // FASE 2 · Merek & Portal Member (tenant_branding)
+  async getTenantBranding(tenantId) {
+    const t = tenantOf(tenantId);
+    const { tenant_branding = [] } = load();
+    const b = tenant_branding.find((x) => x.tenant_id === t);
+    return delay(b ? structuredClone(b) : null);
+  },
+  async saveTenantBranding({ tenantId, displayName, accentColor, logoUrl, welcomeText }) {
+    const t = tenantOf(tenantId);
+    if (!["owner", "superadmin"].includes(currentUser?.role)) throw new Error("Hanya Owner atau Superadmin yang dapat mengubah merek Tenant");
+    if (displayName && (displayName.trim().length < 1 || displayName.length > 60)) throw new Error("Nama tampilan harus 1–60 karakter");
+    if (accentColor && !/^#[0-9a-fA-F]{6}$/.test(accentColor)) throw new Error("Warna aksen harus format hex 6-digit (misal: #059669)");
+    if (logoUrl && !/^https:\/\/\S{4,250}$/.test(logoUrl)) throw new Error("Logo harus berupa URL https:// yang sah (maks 250 karakter)");
+    if (welcomeText && welcomeText.length > 160) throw new Error("Teks sambutan maksimal 160 karakter");
+    const { tenant_branding = [] } = load();
+    db.tenant_branding ??= tenant_branding;
+    let b = db.tenant_branding.find((x) => x.tenant_id === t);
+    if (b) {
+      Object.assign(b, {
+        display_name: displayName ? displayName.trim() : null,
+        accent_color: accentColor || null,
+        logo_url: logoUrl || null,
+        welcome_text: welcomeText || null,
+        updated_at: new Date().toISOString(),
+      });
+    } else {
+      b = {
+        tenant_id: t,
+        display_name: displayName ? displayName.trim() : null,
+        accent_color: accentColor || null,
+        logo_url: logoUrl || null,
+        welcome_text: welcomeText || null,
+        updated_at: new Date().toISOString(),
+      };
+      db.tenant_branding.push(b);
+    }
+    audit("update", "tenant_branding", t, { displayName, accentColor }, t);
+    persist();
+    emitTable("tenant_branding");
+    return delay(structuredClone(b));
   },
 
   // FASE 1.5 · Rekap Pusat Persetujuan Terpadu

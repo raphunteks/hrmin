@@ -7,6 +7,7 @@ const isSuperadmin = is("superadmin");
 const isOwner = is("owner");
 const isGm = is("gm");
 const isOwnerOrGm = is("owner", "gm");
+const isMember = is("member");
 const notDokter = (r) => !is("dokter")(r);
 
 const APPROVAL_FEATURES = [6, 9, 10, 14, 20];
@@ -135,6 +136,9 @@ export const PAGES = [
 
   { path: "/app/akses", label: "Hak akses saya", group: "Akun", code: "RBAC", gate: () => true, Comp: lazy(() => import("./pages/Access.jsx")) },
 ];
+
+// Member (L5) memakai cangkang sendiri (/m); tidak ada satu pun halaman operasional untuknya.
+for (const pg of PAGES) { const g = pg.gate; pg.gate = (r) => !isMember(r) && g(r); }
 
 /** Halaman khusus jenis usaha: klinik tidak butuh denah meja, F&B tidak butuh RME. Pillar belum diketahui → tampil. */
 export const pillarOk = (p, pillar) => !pillar || (p.pillars ? p.pillars.includes(pillar) : !(p.notPillars ?? []).includes(pillar));

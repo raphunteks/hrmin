@@ -7,6 +7,13 @@ const ok = ({ data, error }) => {
   return data;
 };
 
+async function fnError(error) {
+  let msg = error.message;
+  let extra = {};
+  try { const j = await error.context?.json?.(); if (j?.error) msg = j.error; extra = { reason: j?.reason, attempts_left: j?.attempts_left }; } catch { /* pakai pesan bawaan */ }
+  return Object.assign(new Error(msg), extra);
+}
+
 export const api = {
   mode: "supabase",
 
@@ -132,6 +139,23 @@ Object.assign(api, {
     }
     return data;
   },
+  // Masuk Member: Edge Function member-auth (publik). Kode Masuk lewat WhatsApp; sesi dibuat setelah kode benar.
+  async memberRequestCode({ tenantSlug, phone, deviceId, consentData, consentMarketing }) {
+    const { data, error } = await supabase.functions.invoke("member-auth", {
+      body: { action: "request", tenant_slug: tenantSlug, phone, device_id: deviceId, consent_data: consentData === true, consent_marketing: consentMarketing === true },
+    });
+    if (error) throw await fnError(error);
+    return data; // { sent, simulated, expires_at, dev_code? } — dev_code hanya ada bila server memang dalam mode simulasi
+  },
+  async memberVerifyCode({ tenantSlug, phone, deviceId, code, name }) {
+    const { data, error } = await supabase.functions.invoke("member-auth", {
+      body: { action: "verify", tenant_slug: tenantSlug, phone, device_id: deviceId, code, name },
+    });
+    if (error) throw await fnError(error);
+    const { error: aerr } = await supabase.auth.verifyOtp({ token_hash: data.token_hash, type: data.type });
+    if (aerr) throw new Error(aerr.message);
+    return { is_new: data.is_new, points: data.points };
+  },
   // FASE 1 · status akses (akun nonaktif / tenant ditangguhkan), presence, dan pengiriman undangan.
   accessState: async () => ok(await supabase.rpc("my_access_state")),
   touchPresence: async (login = false) => ok(await supabase.rpc("touch_presence", { p_login: login })),
@@ -178,4 +202,17 @@ Object.assign(api, {
     if (tenantId) q = q.eq("tenant_id", tenantId);
     return ok(await q);
   },
+
+  // FASE 2 · Merek & Portal Member (tenant_branding)
+  getTenantBranding: async (tenantId) =>
+    ok(await supabase.from("tenant_branding").select("*").eq("tenant_id", tenantId).maybeSingle()),
+  saveTenantBranding: async ({ tenantId, displayName, accentColor, logoUrl, welcomeText }) =>
+    ok(await supabase.from("tenant_branding").upsert({
+      tenant_id: tenantId,
+      display_name: displayName?.trim() || null,
+      accent_color: accentColor || null,
+      logo_url: logoUrl || null,
+      welcome_text: welcomeText || null,
+      updated_at: new Date().toISOString(),
+    }).select().single()),
 });
