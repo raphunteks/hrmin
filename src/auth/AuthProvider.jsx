@@ -118,10 +118,20 @@ export function AuthProvider({ children }) {
       viewTenant,
       chooseTenant,
       signIn: (e, p) => api.signIn(e, p),
-      signOut: () => {
+      signOut: async () => {
         setViewTenant(null);
         remember(null);
-        return api.signOut();
+        setProfile(null);
+        setTenant(null);
+        setBlocked(null);
+        setProblem(null);
+        try {
+          if (apiRef.current?.signOut) {
+            await apiRef.current.signOut();
+          }
+        } catch (e) {
+          console.warn("Sign out error:", e);
+        }
       },
     }),
     [api, ready, profile, blocked, problem, viewTenant, chooseTenant, tenantId, tenant]

@@ -77,6 +77,7 @@ export default function AppShell() {
   const { profile, role, tenantId, signOut, api, pillar } = useAuth();
   const { path, navigate } = useRouter();
   const [navOpen, setNavOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return sessionStorage.getItem("harumin:sidebar_collapsed") === "1";
@@ -178,9 +179,14 @@ export default function AppShell() {
             type="button"
             className="d-btn d-btn--ghost d-btn--block d-side__logout"
             title={collapsed ? "Keluar" : undefined}
+            disabled={loggingOut}
             onClick={async () => {
-              await signOut();
-              navigate("/masuk", { replace: true });
+              setLoggingOut(true);
+              try {
+                await signOut();
+              } finally {
+                navigate("/masuk", { replace: true });
+              }
             }}
           >
             <svg className="d-logout-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -188,7 +194,7 @@ export default function AppShell() {
               <polyline points="16 17 21 12 16 7" />
               <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
-            <span className="d-logout-text">Keluar</span>
+            <span className="d-logout-text">{loggingOut ? "Keluar…" : "Keluar"}</span>
           </button>
         </div>
       </aside>

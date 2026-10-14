@@ -30,7 +30,18 @@ export const api = {
     ok(await supabase.auth.signInWithPassword({ email, password }));
   },
   async signOut() {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut({ scope: "local" }).catch(() => null);
+    } catch { /* abaikan */ }
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith("sb-") || k.includes("auth-token"))) {
+          localStorage.removeItem(k);
+        }
+      }
+      sessionStorage.clear();
+    } catch { /* abaikan */ }
   },
   async getProfile(uid) {
     return ok(await supabase.from("profiles").select("id, tenant_id, branch_id, role, full_name, email").eq("id", uid).single());

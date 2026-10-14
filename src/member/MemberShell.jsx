@@ -37,7 +37,7 @@ export default function MemberShell() {
     return (
       <div className="m-shell">
         <main className="m-main"><ErrorNote error={brand.error} onRetry={brand.reload} />
-          <button type="button" className="d-btn d-btn--ghost" onClick={() => signOut()}>Keluar</button></main>
+          <button type="button" className="d-btn d-btn--ghost" onClick={async () => { await signOut(); navigate("/masuk", { replace: true }); }}>Keluar</button></main>
       </div>
     );
   }
@@ -50,7 +50,7 @@ export default function MemberShell() {
           {b.logo_url ? <img className="m-brand__logo" src={b.logo_url} alt="" width="32" height="32" referrerPolicy="no-referrer" /> : <span className="m-brand__mark" aria-hidden="true">{b.display_name?.[0] ?? "H"}</span>}
           <span className="m-brand__name">{b.display_name}</span>
         </div>
-        <button type="button" className="d-btn d-btn--ghost d-btn--sm" onClick={() => signOut()}>Keluar</button>
+        <button type="button" className="d-btn d-btn--ghost d-btn--sm" onClick={async () => { await signOut(); navigate("/masuk", { replace: true }); }}>Keluar</button>
       </header>
       <main id="m-main" className="m-main" tabIndex={-1}>
         <Suspense fallback={<Loading />}>

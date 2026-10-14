@@ -491,6 +491,28 @@
 .d-login { min-height: 100vh; display: grid; place-items: center; padding: var(--space-lg) var(--gutter); background: var(--color-paper-2); }
 .d-login__card { width: min(26rem, 100%); display: grid; gap: var(--space-md); padding: var(--space-xl) var(--space-lg); background: var(--color-paper); border: var(--rule-hair) solid var(--color-rule-2); border-radius: var(--radius-lg); }
 .d-login h1 { font-size: var(--text-2xl); font-weight: 600; letter-spacing: -0.02em; }
+.d-login-session {
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-accent-soft);
+  border: var(--rule-hair) solid var(--color-accent);
+  border-radius: var(--radius-md);
+}
+.d-login-session__text {
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3xs);
+}
+.d-login-session__actions {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+}
 .d-demo { display: grid; gap: var(--space-xs); padding-top: var(--space-md); border-top: var(--rule-hair) solid var(--color-rule); }
 .d-demo ul { display: grid; gap: var(--space-2xs); }
 .d-demo__btn {
