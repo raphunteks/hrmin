@@ -10,3 +10,10 @@ verify_jwt = false
 
 [functions.member-auth]
 verify_jwt = false
+
+[functions.qris-webhook]
+verify_jwt = false
+
+[functions.qris-charge]
+verify_jwt = false
+

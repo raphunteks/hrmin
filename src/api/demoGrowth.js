@@ -49,7 +49,9 @@ export function createGrowth(ctx) {
     { key: "cash_projection", description: "Proyeksi arus kas", default_enabled: false, plans: ["growth", "enterprise"], rollout_pct: 100 },
     { key: "ai_copilot", description: "AI Copilot Owner", default_enabled: false, plans: ["growth", "enterprise"], rollout_pct: 100 },
     { key: "benchmark", description: "Benchmark anonim antar-tenant", default_enabled: false, plans: ["growth", "enterprise"], rollout_pct: 100 },
-    { key: "offline_pos", description: "Mode offline kasir", default_enabled: false, plans: ["growth", "enterprise"], rollout_pct: 100 }];
+    { key: "offline_pos", description: "Mode offline kasir", default_enabled: false, plans: ["growth", "enterprise"], rollout_pct: 100 },
+    { key: "qris_dynamic", description: "QRIS dinamis di layar bayar", default_enabled: false, plans: ["growth", "enterprise"], rollout_pct: 100 },
+    { key: "online_orders", description: "Pesanan online (omnichannel)", default_enabled: false, plans: ["growth", "enterprise"], rollout_pct: 100 }];
   db.tenant_flag_overrides ??= [];
   db.ai_usage ??= [{ tenant_id: T1, month: MONTH(todayStr()), calls: 14, tokens: 83200 }];
   db.copilot_logs ??= [];

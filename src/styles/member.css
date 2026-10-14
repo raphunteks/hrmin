@@ -19,7 +19,7 @@
 .m-main h2 { font-size: var(--text-xl); }
 
 .m-tabs {
-  position: fixed; inset: auto 0 0 0; z-index: 10; display: grid; grid-template-columns: repeat(5, 1fr);
+  position: fixed; inset: auto 0 0 0; z-index: 10; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
   background: var(--color-paper); border-top: var(--rule-hair) solid var(--color-rule); padding-bottom: env(safe-area-inset-bottom);
 }
 .m-tab {
@@ -62,3 +62,11 @@
   .m-shell { grid-template-rows: auto 1fr auto; }
   .m-main { padding-bottom: var(--space-md); }
 }
+
+/* Pesan & Reservasi */
+.m-qty { display: inline-flex; align-items: center; gap: var(--space-xs); }
+.m-qty output { min-width: 1.5rem; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
+.m-cartbar { position: sticky; bottom: calc(3.25rem + env(safe-area-inset-bottom)); display: flex; justify-content: space-between; align-items: center; gap: var(--space-sm);
+  margin-top: var(--space-md); padding: var(--space-sm); background: var(--color-paper); border: var(--rule-hair) solid var(--color-rule); border-radius: var(--radius-md); }
+.m-card input:not([type="checkbox"]) { width: 100%; margin-top: var(--space-xs); }
+@media (min-width: 40rem) { .m-cartbar { bottom: var(--space-sm); } }

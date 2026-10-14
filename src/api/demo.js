@@ -214,6 +214,10 @@ export const api = {
   copilotAsk: async (question) => O().rpc("copilot_ask_demo", { p_question: question }),
   searchIcd: async (system, q, limit) => searchIcd(system, q, limit),
   lockTable: async () => ({ locked: true }),
+  qrisCreate: async (orderId) => O().rpc("qris_start", { p_order: orderId }),
+  qrisStatus: async (chargeId) => O().rpc("qris_status", { p_charge: chargeId }),
+  qrisCancel: async (chargeId) => O().rpc("qris_cancel", { p_charge: chargeId }),
+  qrisSimulatePaid: async (chargeId) => O().rpc("qris_simulate_paid", { p_charge: chargeId }),
   subscribe(table, _filter, cb) {
     if (!bus.has(table)) bus.set(table, new Set());
     bus.get(table).add(cb);

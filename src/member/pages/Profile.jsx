@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "../../lib/router.jsx";
 import { useAuth } from "../../auth/AuthProvider.jsx";
 import { useAsync, Loading, ErrorNote } from "../../app/ui/index.jsx";
 
@@ -29,6 +30,7 @@ export default function Profile() {
         {msg && <p className={msg.ok ? "d-field__hint" : "d-field__error"} role={msg.ok ? "status" : "alert"}>{msg.t}</p>}
         <button type="submit" className="d-btn d-btn--primary" disabled={busy}>{busy ? "Menyimpan…" : "Simpan"}</button>
       </form>
+      <p className="m-section"><Link to="/m/privasi">Privasi dan data saya</Link></p>
     </section>
   );
 }

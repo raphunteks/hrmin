@@ -139,6 +139,20 @@ Object.assign(api, {
     }
     return data;
   },
+  // QRIS dinamis: pembuatan QR lewat Edge Function qris-charge (bicara ke penyedia); status dan batal lewat RPC.
+  async qrisCreate(orderId) {
+    const { data, error } = await supabase.functions.invoke("qris-charge", { body: { action: "create", order_id: orderId } });
+    if (error) throw await fnError(error);
+    return data.charge;
+  },
+  qrisStatus: async (chargeId) => ok(await supabase.rpc("qris_status", { p_charge: chargeId })),
+  qrisCancel: async (chargeId) => ok(await supabase.rpc("qris_cancel", { p_charge: chargeId })),
+  /** Hanya bila server QRIS_SIMULATE=1 (pengembangan). */
+  async qrisSimulatePaid(chargeId) {
+    const { data, error } = await supabase.functions.invoke("qris-charge", { body: { action: "simulate_paid", charge_id: chargeId } });
+    if (error) throw await fnError(error);
+    return data;
+  },
   // Masuk Member: Edge Function member-auth (publik). Kode Masuk lewat WhatsApp; sesi dibuat setelah kode benar.
   async memberRequestCode({ tenantSlug, phone, deviceId, consentData, consentMarketing }) {
     const { data, error } = await supabase.functions.invoke("member-auth", {

@@ -69,7 +69,7 @@ export default function Kitchen() {
                     return (
                       <article key={t.key} className={`kds-ticket sla--${sla}`}>
                         <header>
-                          <p className="kds-ticket__where">{t.order?.table_label ? `Meja ${t.order.table_label}` : "Takeaway"}</p>
+                          <p className="kds-ticket__where">{t.order?.table_label ? `Meja ${t.order.table_label}` : "Takeaway"}{t.order?.channel === "member" && <> · <strong>Member{t.order.customer_name ? ` ${t.order.customer_name}` : ""}</strong></>}{(t.order?.channel === "online_sim" || t.order?.channel === "gofood") && <> · <strong>{t.order.channel === "gofood" ? "GoFood" : "Online (simulasi)"}{t.order.customer_name ? ` · ${t.order.customer_name}` : ""}</strong></>}</p>
                           <p className="kds-ticket__time d-mono">{m} mnt</p>
                         </header>
                         <ul>{t.items.map((i) => <li key={i.id}><strong>{i.qty}×</strong> {i.name}{i.note && <span className="kds-note">{i.note}</span>}<span className="d-mono d-muted kds-st">{i.station}</span></li>)}</ul>

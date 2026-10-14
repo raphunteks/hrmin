@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../../auth/AuthProvider.jsx";
 import { rupiah } from "../../../lib/format.js";
-import { Modal, Field, Badge } from "../../ui/index.jsx";
+import { Modal, Field, Badge, useAsync } from "../../ui/index.jsx";
 import { useAction, Feedback } from "../../ops.jsx";
 import { taxOf, taxLabel as taxLabelOf } from "../../../lib/tax.js";
+import QrisPanel from "./QrisPanel.jsx";
 
 const METHODS = [["cash", "Tunai"], ["card", "Kartu"], ["qris", "QRIS"], ["ewallet", "E-wallet"]];
 export { taxOf };
@@ -53,6 +54,13 @@ export function PaymentModal({ open, order, onClose, onPaid }) {
   const [rows, setRows] = useState([]);
   const [phone, setPhone] = useState("");
   useEffect(() => setPhone(order?.customer_phone ?? ""), [order?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const flags = useAsync(() => (api?.rpc ? api.rpc("my_flags").catch(() => ({})) : Promise.resolve({})), [api]);
+  const qrisOn = Boolean(flags.data?.qris_dynamic) && typeof api?.qrisCreate === "function";
+  const onQrisPaid = async () => {
+    const [o] = await api.list("orders", { eq: { id: order.id } });
+    setReceipt({ ...(o ?? order), change: 0, rows: [] });
+    onPaid();
+  };
   const [cardTok, setCardTok] = useState("");
   const [cardInfo, setCardInfo] = useState(null);
   const scan = useAction();
@@ -167,6 +175,7 @@ export function PaymentModal({ open, order, onClose, onPaid }) {
               <input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN otorisasi" />
             </Field>
           )}
+          {qrisOn && rows.length === 0 && <QrisPanel order={order} onPaid={onQrisPaid} disabled={needPin || (!viaVoucher && discAmt > 0)} />}
           <div className="pos-methods" role="group" aria-label="Tambah metode bayar">
             {METHODS.map(([m, l]) => <button key={m} type="button" className="d-btn d-btn--ghost d-btn--sm" onClick={() => add(m)}>+ {l}</button>)}
             <span className="pos-split">

@@ -11,10 +11,13 @@ const Card = lazy(() => import("./pages/Card.jsx"));
 const History = lazy(() => import("./pages/History.jsx"));
 const Profile = lazy(() => import("./pages/Profile.jsx"));
 const Privacy = lazy(() => import("./pages/Privacy.jsx"));
+const Order = lazy(() => import("./pages/Order.jsx"));
+const Reserve = lazy(() => import("./pages/Reserve.jsx"));
 
+// Elemen ke-4 true = rute ada tetapi tidak muncul di bilah bawah (Privasi dibuka dari Profil).
 const TABS = [
-  ["/m", "Beranda", Home], ["/m/kartu", "Kartu", Card], ["/m/riwayat", "Riwayat", History],
-  ["/m/profil", "Profil", Profile], ["/m/privasi", "Privasi", Privacy],
+  ["/m", "Beranda", Home], ["/m/pesan", "Pesan", Order], ["/m/reservasi", "Reservasi", Reserve], ["/m/kartu", "Kartu", Card],
+  ["/m/riwayat", "Riwayat", History], ["/m/profil", "Profil", Profile], ["/m/privasi", "Privasi", Privacy, true],
 ];
 
 /** Cangkang Member: ringan, mobile-first, bermerek Tenant. Tidak berbagi menu dengan dashboard operasional. */
@@ -55,8 +58,8 @@ export default function MemberShell() {
         </Suspense>
       </main>
       <nav className="m-tabs" aria-label="Menu Member">
-        {TABS.map(([p, label]) => (
-          <Link key={p} to={p} className="m-tab" aria-current={p === tab[0] ? "page" : undefined}>{label}</Link>
+        {TABS.filter((t) => !t[3]).map(([p, label]) => (
+          <Link key={p} to={p} className="m-tab" aria-current={p === tab[0] || (p === "/m/profil" && tab[0] === "/m/privasi") ? "page" : undefined}>{label}</Link>
         ))}
       </nav>
     </div>

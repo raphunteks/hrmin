@@ -9,7 +9,7 @@ const MemberShell = lazy(() => import("./member/MemberShell.jsx"));
 const MemberAuth = lazy(() => import("./member/MemberAuth.jsx"));
 
 // Bagian dalam /m yang bukan slug Tenant (Member sudah masuk).
-const MEMBER_SECTIONS = new Set(["kartu", "riwayat", "profil", "privasi"]);
+const MEMBER_SECTIONS = new Set(["kartu", "riwayat", "profil", "privasi", "pesan", "reservasi"]);
 
 function Splash() {
   return <div className="splash" role="status" aria-label="Memuat" />;

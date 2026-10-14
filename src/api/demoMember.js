@@ -10,6 +10,7 @@ export function phoneLocal(p) {
   return d;
 }
 export const phoneVariants = (p) => { const l = phoneLocal(p); return [l, "+62" + l.slice(1), "62" + l.slice(1)]; };
+import { createMemberOrderRpc } from "./demoMemberOrder.js";
 const normPhone = (p) => String(p ?? "").replace(/[^0-9+]/g, "") || null;
 
 const MIN = 60_000;
@@ -109,7 +110,10 @@ export function createMemberRpc({ db, user, now = () => Date.now(), onDeleted })
     [...(db.member_consents ?? [])].reverse().find((k) => k.profile_id === profileId && k.kind === "marketing_whatsapp")?.granted ?? false;
   const myOrders = (c) => (db.orders ?? []).filter((o) => o.tenant_id === c.tenant_id && normPhone(o.customer_phone) && normPhone(o.customer_phone) === normPhone(c.phone));
 
+  const OR = createMemberOrderRpc({ db, ctx, fail, now, normPhone });
+  const { reservationsOf, ...ORDER_RPC } = OR;
   return {
+    ...ORDER_RPC,
     member_brand() {
       const { u } = ctx();
       const t = db.tenants.find((x) => x.id === u.tenant_id);
@@ -164,6 +168,7 @@ export function createMemberRpc({ db, user, now = () => Date.now(), onDeleted })
         profil: { id: u.id, nama: u.full_name },
         pelanggan: { telepon: c.phone, nama: c.name, poin: c.points, total_belanja: c.total_spent, kunjungan: c.visits, terakhir_berkunjung: c.last_visit_at, catatan_saya: c.member_note ?? null },
         pesanan: orders,
+        reservasi: reservationsOf(c).map((q) => ({ jenis: q.kind, status: q.status, jadwal: q.scheduled_at, tamu: q.party_size, catatan: q.complaint })),
         persetujuan: (db.member_consents ?? []).filter((k) => k.profile_id === u.id).map((k) => ({ jenis: k.kind, diberikan: k.granted, versi_kebijakan: k.policy_version, waktu: k.recorded_at })),
         catatan: "Rekam medis (bila ada) dikelola klinik dan tidak termasuk dalam berkas ini.",
       };
@@ -173,7 +178,7 @@ export function createMemberRpc({ db, user, now = () => Date.now(), onDeleted })
       if (p_confirm !== "HAPUS") fail("Ketik HAPUS untuk mengonfirmasi");
       const mine = myOrders(c);
       for (const o of mine) { o.customer_phone = null; o.customer_id = null; }
-      for (const q of db.queue_entries ?? []) if (q.tenant_id === c.tenant_id && normPhone(q.phone) === normPhone(c.phone)) { q.phone = null; q.name = "Dihapus"; }
+      for (const q of db.queue_entries ?? []) if (q.tenant_id === c.tenant_id && (q.customer_id === c.id || normPhone(q.phone) === normPhone(c.phone))) { q.phone = null; q.name = "Dihapus"; q.customer_id = null; }
       db.member_consents = (db.member_consents ?? []).filter((k) => k.profile_id !== u.id);
       db.profiles = db.profiles.filter((p) => p.id !== u.id);
       db.customers = db.customers.filter((x) => x.id !== c.id);

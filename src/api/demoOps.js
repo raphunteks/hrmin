@@ -17,6 +17,7 @@ const TYPE = (code) => ({ 1: "asset", 2: "liability", 3: "equity", 4: "revenue",
 
 // Tabel → fitur matriks (sama dengan policy RLS).
 export const TABLE_RULES = {
+  channel_connections: { f: [16], branch: true }, channel_orders: { f: [16] }, channel_outbox: { f: [16] },
   products: { f: [3] }, inventory_items: { f: [4, 10] }, bom_lines: { f: [4] },
   stock_levels: { f: [10], branch: true }, stock_movements: { f: [10], branch: true },
   stock_counts: { f: [10], branch: true, own: "created_by" }, waste_logs: { f: [10], branch: true, own: "created_by" },
@@ -176,6 +177,23 @@ export function createOps(ctx) {
       geofence_radius_meters: 50, enforce_shift_lock: true
     };
   };
+  // Rekonsiliasi: hanya Superadmin/Owner/GM membaca; hanya Superadmin/GM menulis. Staff (hak petty cash) tidak punya akses.
+  const reconReader = () => ["superadmin", "owner", "gm"].includes(role()) && can(role(), 12, "r");
+  const reconWriter = () => {
+    need(12, "u");
+    if (!["superadmin", "gm"].includes(role())) err("Hanya GM atau Superadmin yang boleh merekonsiliasi");
+    return user().tenant_id ?? err("Pilih Tenant dulu");
+  };
+  const onlineOn = (t) => {
+    const tt = db.tenants.find((x) => x.id === t);
+    const o = (db.tenant_flag_overrides ?? []).find((x) => x.tenant_id === t && x.key === "online_orders");
+    if (o) return o.enabled;
+    return ["growth", "enterprise"].includes(db.plans?.find((pl) => pl.id === tt?.plan_id)?.code);
+  };
+  const reconDate = (x) => {
+    if (x.payment_id) { const p = db.payments.find((y) => y.id === x.payment_id); return String(db.orders.find((o) => o.id === p?.order_id)?.paid_at ?? "").slice(0, 10); }
+    return (db.recon_statements ?? []).find((s) => s.id === x.statement_id)?.settled_on ?? "";
+  };
   const done = (v, tables = []) => { persist(); tables.forEach(emit); return v; };
   const clinic = createClinic({ db, user, emit, persist, audit, err, need, tenantOk, branchOk, branchGuard, id, nowIso });
   const access = createAccess({ db, user, emit, persist, audit, err, need, tenantOk, branchOk, id, nowIso, sales });
@@ -251,7 +269,7 @@ export function createOps(ctx) {
 
   // Fungsi yang boleh dipanggil Member. Bertambah seiring tiket 05–07 (masuk, pesan, reservasi).
   const MEMBER_FN = createMemberRpc({ db, user, onDeleted: () => ctx.onMemberDeleted?.() });
-  const MEMBER_RPC = new Set(["my_access_state", "touch_presence", "member_brand", "member_home", "member_update_profile", "member_card_token", "member_export", "member_delete_account"]);
+  const MEMBER_RPC = new Set(["my_access_state", "touch_presence", "member_brand", "member_home", "member_update_profile", "member_card_token", "member_export", "member_delete_account", "member_menu", "member_place_order", "member_orders", "member_cancel_order", "member_reservation_create", "member_reservations", "member_reservation_update", "member_reservation_cancel"]);
 
   const api = {
     async list(table, { eq = {}, inList, order, limit } = {}) {
@@ -547,8 +565,68 @@ export function createOps(ctx) {
       if (!(can(role(), 8, "u") || can(role(), 3, "u"))) err("Akses ditolak: fitur 8/3");
       const p = db.products.find((x) => x.id === p_product && tenantOk(x.tenant_id));
       if (!p) err("Produk tidak ditemukan");
+      const changed = p.is_available !== p_available;
       p.is_available = p_available;
-      return done(structuredClone(p), ["products"]);
+      // Cermin trigger products_channel_sync: koneksi AKTIF mendapat antrean ketersediaan; simulasi langsung 'sent'.
+      if (changed) for (const c of (db.channel_connections ?? []).filter((x) => x.tenant_id === p.tenant_id && x.status === "active")) {
+        (db.channel_outbox ??= []).push({ id: id(), tenant_id: p.tenant_id, connection_id: c.id, kind: "availability", product_id: p.id, available: p_available,
+          status: c.channel === "sim" ? "sent" : "pending", attempts: 0, created_at: nowIso(), sent_at: c.channel === "sim" ? nowIso() : null });
+      }
+      return done(structuredClone(p), ["products", "channel_outbox"]);
+    },
+    // ── Pesanan online F16 (cermin 20261011000028_online_orders.sql). Hanya kanal 'sim' dan 'gofood' (menunggu akses). ──
+    online_connection_save({ p_branch, p_channel, p_label, p_settings = {} }) {
+      const t = branchGuard(p_branch);
+      need(16, "c");
+      if (!onlineOn(t)) err("Pesanan online belum aktif untuk Paket ini");
+      if (!["sim", "gofood"].includes(p_channel)) err(`Kanal ${p_channel} belum didukung`);
+      const label = String(p_label ?? "").trim();
+      if (label.length < 2 || label.length > 60) err("Nama koneksi 2–60 karakter");
+      if (/(secret|token|password|api[_-]?key|server[_-]?key)/i.test(JSON.stringify(p_settings ?? {}))) err("Jangan simpan rahasia di pengaturan koneksi. Pakai Supabase Vault.");
+      const list = (db.channel_connections ??= []);
+      let c = list.find((x) => x.branch_id === p_branch && x.channel === p_channel);
+      if (c) Object.assign(c, { label, settings: p_settings ?? {} });
+      else list.push((c = { id: id(), tenant_id: t, branch_id: p_branch, channel: p_channel, label, status: p_channel === "sim" ? "active" : "awaiting_access", settings: p_settings ?? {}, last_sync_at: null, created_at: nowIso() }));
+      audit("online_connection_save", "channel_connections", c.id, { channel: c.channel, status: c.status }, t);
+      return done(structuredClone(c), ["channel_connections"]);
+    },
+    online_connection_status({ p_id, p_status }) {
+      need(16, "u");
+      if (!["active", "paused"].includes(p_status)) err("Status tidak valid");
+      const c = (db.channel_connections ?? []).find((x) => x.id === p_id);
+      if (!c || !tenantOk(c.tenant_id) || !branchOk(c.branch_id)) err("Koneksi tidak ditemukan");
+      if (c.channel !== "sim" && p_status === "active") err(`Adapter ${c.channel} belum tersedia (menunggu akses sandbox/persyaratan penyedia)`);
+      c.status = p_status;
+      audit("online_connection_status", "channel_connections", c.id, { status: p_status }, c.tenant_id);
+      return done(structuredClone(c), ["channel_connections"]);
+    },
+    online_sim_order({ p_conn, p_items, p_customer = "Pelanggan Simulasi" }) {
+      need(16, "c");
+      const c = (db.channel_connections ?? []).find((x) => x.id === p_conn);
+      if (!c || !tenantOk(c.tenant_id) || !branchOk(c.branch_id)) err("Koneksi tidak ditemukan");
+      if (c.channel !== "sim") err("Hanya koneksi simulasi yang boleh dipakai di sini");
+      if (!onlineOn(c.tenant_id)) err("Pesanan online belum aktif untuk Paket ini");
+      if (c.status !== "active") err(`Koneksi ${c.label} belum aktif (${c.status})`);
+      const ext = `SIM-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const reject = (msg) => { (db.channel_orders ??= []).unshift({ id: id(), tenant_id: c.tenant_id, connection_id: c.id, external_id: ext, order_id: null, status: "rejected", error: msg, customer_name: p_customer, received_at: nowIso() }); return done({ ok: false, rejected: true, error: msg }, ["channel_orders"]); };
+      if (!Array.isArray(p_items) || p_items.length < 1 || p_items.length > 50) return reject("Item pesanan 1–50 baris");
+      const lines = [];
+      for (const it of p_items) {
+        const pr = db.products.find((x) => x.tenant_id === c.tenant_id && x.sku === String(it.sku ?? "").trim());
+        if (!pr) return reject(`SKU ${it.sku ?? "?"} tidak dikenal`);
+        const qty = Number(it.qty);
+        if (!Number.isInteger(qty) || qty < 1 || qty > 99) return reject(`Jumlah ${pr.name} tidak valid`);
+        if (!pr.is_available) return reject(`${pr.name} sedang habis (86)`);
+        lines.push({ pr, qty, note: String(it.note ?? "").trim().slice(0, 100) || null });
+      }
+      const o = { id: id(), tenant_id: c.tenant_id, branch_id: c.branch_id, code: `ONL-${Date.now().toString(36).toUpperCase()}`, status: "open", channel: "online_sim", table_id: null, table_label: null,
+        subtotal: 0, discount: 0, tax: 0, total: 0, cogs: 0, cashier_id: null, shift_id: null, customer_id: null, customer_phone: null, customer_name: String(p_customer ?? "").trim().slice(0, 80) || null, created_at: nowIso(), paid_at: null };
+      db.orders.unshift(o);
+      for (const { pr, qty, note } of lines) db.order_items.push({ id: id(), tenant_id: c.tenant_id, branch_id: c.branch_id, order_id: o.id, product_id: pr.id, name: pr.name, qty, price: pr.price, station: pr.station, note, kitchen_status: "new", created_at: nowIso() });
+      o.subtotal = o.total = db.order_items.filter((i) => i.order_id === o.id).reduce((a, i) => a + i.qty * i.price, 0);
+      (db.channel_orders ??= []).unshift({ id: id(), tenant_id: c.tenant_id, connection_id: c.id, external_id: ext, order_id: o.id, status: "received", error: null, customer_name: o.customer_name, received_at: nowIso() });
+      c.last_sync_at = nowIso();
+      return done({ ok: true, order_id: o.id, code: o.code, total: o.total }, ["orders", "order_items", "channel_orders", "channel_connections"]);
     },
     move_order({ p_order, p_table }) {
       need(5, "u");
@@ -593,6 +671,57 @@ export function createOps(ctx) {
       o.tax = tax;
       o.total = taxable + tax;
       return done(structuredClone(o), ["orders"]);
+    },
+    // ── QRIS dinamis (cermin 20261011000026_qris_dynamic.sql). Penyedia = simulasi; konfirmasi lewat qris_simulate_paid. ──
+    qris_start({ p_order }) {
+      need(5, "c");
+      const o = db.orders.find((x) => x.id === p_order);
+      if (!o || !tenantOk(o.tenant_id) || !branchOk(o.branch_id)) err("Pesanan tidak ditemukan");
+      const planCode = db.plans?.find((pl) => pl.id === db.tenants.find((t) => t.id === o.tenant_id)?.plan_id)?.code;
+      if (!["growth", "enterprise"].includes(planCode)) err("QRIS dinamis belum aktif untuk Paket ini");
+      if (o.status !== "open") err("Pesanan sudah dibayar atau dibatalkan");
+      const s = openShift();
+      if (!s) err("Buka shift kasir dulu sebelum menerima pembayaran");
+      const rate = Number(db.tenants.find((x) => x.id === o.tenant_id)?.tax_rate ?? 0);
+      const taxable = o.subtotal - (o.discount ?? 0);
+      const amount = taxable + (o.channel === "clinic" ? 0 : Math.round(taxable * rate));
+      if (amount <= 0) err("Total Pesanan nol; tidak perlu QRIS");
+      const list = (db.payment_charges ??= []);
+      const nowMs = Date.now();
+      for (const c of list) if (c.order_id === o.id && c.status === "pending" && c.expires_at && new Date(c.expires_at).getTime() <= nowMs) c.status = "expired";
+      const cur = list.find((c) => c.order_id === o.id && c.status === "pending");
+      if (cur) { if (cur.amount === amount) return done(structuredClone(cur), []); cur.status = "cancelled"; cur.note = "Total Pesanan berubah"; }
+      const cid = id();
+      const c = { id: cid, tenant_id: o.tenant_id, branch_id: o.branch_id, order_id: o.id, provider: "sim", provider_ref: `SIM-${cid}`, amount, status: "pending",
+        qr_string: `SIMULASI-QRIS|${amount}|${cid}`, qr_url: null, expires_at: new Date(nowMs + 15 * 60e3).toISOString(), paid_at: null, shift_id: s.id, note: null, created_at: nowIso() };
+      list.push(c);
+      return done(structuredClone(c), []);
+    },
+    qris_status({ p_charge }) {
+      need(5, "r");
+      const c = (db.payment_charges ?? []).find((x) => x.id === p_charge);
+      if (!c || !tenantOk(c.tenant_id) || !branchOk(c.branch_id)) err("Tagihan tidak ditemukan");
+      if (c.status === "pending" && c.expires_at && new Date(c.expires_at).getTime() <= Date.now()) c.status = "expired";
+      return done(structuredClone(c), []);
+    },
+    qris_cancel({ p_charge }) {
+      need(5, "c");
+      const c = (db.payment_charges ?? []).find((x) => x.id === p_charge);
+      if (!c || !tenantOk(c.tenant_id) || !branchOk(c.branch_id)) err("Tagihan tidak ditemukan");
+      if (c.status !== "pending") err(`Tagihan sudah ${c.status}`);
+      c.status = "cancelled";
+      return done(structuredClone(c), []);
+    },
+    /** Hanya demo: menggantikan webhook penyedia. Melunasi lewat pay_order yang sama (stok, poin, Jurnal ikut). */
+    qris_simulate_paid({ p_charge }) {
+      need(5, "c");
+      const c = (db.payment_charges ?? []).find((x) => x.id === p_charge);
+      if (!c || !tenantOk(c.tenant_id) || !branchOk(c.branch_id)) err("Tagihan tidak ditemukan");
+      if (c.status === "paid") return done({ ok: true, duplicate: true }, []);
+      if (c.status !== "pending") err("Hanya tagihan pending yang bisa disimulasikan");
+      const r = RPC.pay_order({ p_order: c.order_id, p_payments: [{ method: "qris", amount: c.amount, reference: c.provider_ref }] });
+      Object.assign(c, { status: "paid", paid_at: nowIso() });
+      return done({ ok: true, order_id: c.order_id }, ["orders", "payments"]);
     },
     pay_order({ p_order, p_payments, p_customer_phone, p_discount, p_pin }) {
       need(5, "c");
@@ -945,6 +1074,90 @@ export function createOps(ctx) {
         }
       }
       return Object.values(g);
+    },
+    // ── Rekonsiliasi pembayaran digital (cermin 20261011000027_payment_recon.sql) ──
+    recon_import({ p_provider, p_rows }) {
+      reconWriter();
+      if (String(p_provider ?? "").trim().length < 2) err("Nama penyedia wajib");
+      if (!Array.isArray(p_rows) || !p_rows.length) err("Tidak ada baris untuk diimpor");
+      if (p_rows.length > 5000) err("Maksimal 5000 baris per impor");
+      const t = user().tenant_id;
+      p_rows.forEach((r, i) => {
+        const ref = String(r.ref ?? "").trim(), g = Number(r.gross), f = Number(r.fee ?? 0), d = String(r.settled_on ?? "").slice(0, 10);
+        if (!ref || !(g >= 0) || !(f >= 0) || !/^\d{4}-\d{2}-\d{2}$/.test(d)) err(`Baris ${i + 1} tidak valid (ref, gross, fee, settled_on)`);
+        const list = (db.recon_statements ??= []);
+        const cur = list.find((x) => x.tenant_id === t && x.provider === p_provider.trim() && x.provider_ref === ref);
+        if (cur) Object.assign(cur, { gross: g, fee: f, settled_on: d });
+        else list.push({ id: id(), tenant_id: t, provider: p_provider.trim(), provider_ref: ref, gross: g, fee: f, settled_on: d });
+      });
+      audit("recon_import", "payment_recon", p_provider.trim(), { rows: p_rows.length }, t);
+      return done({ imported: p_rows.length }, []);
+    },
+    recon_run({ p_from, p_to }) {
+      const t = reconWriter();
+      if (!p_from || !p_to || p_to < p_from) err("Rentang tanggal tidak valid");
+      if ((new Date(p_to) - new Date(p_from)) / 864e5 > 92) err("Rentang maksimal 93 hari");
+      const stm = (db.recon_statements ??= []).filter((x) => x.tenant_id === t);
+      const items = (db.payment_recon ??= []);
+      const pays = db.payments.filter((p) => {
+        const o = db.orders.find((x) => x.id === p.order_id);
+        return p.tenant_id === t && p.method !== "cash" && o?.status === "paid" && branchOk(o.branch_id) && String(o.paid_at).slice(0, 10) >= p_from && String(o.paid_at).slice(0, 10) <= p_to;
+      });
+      const upsert = (key, row) => {
+        const cur = items.find((x) => x[key.k] === key.v);
+        if (cur) Object.assign(cur, row); else items.push({ id: id(), tenant_id: t, note: null, noted_by: null, noted_at: null, journal_id: null, ...row });
+      };
+      for (const p of pays) {
+        const o = db.orders.find((x) => x.id === p.order_id);
+        const same = pays.filter((x) => x.reference && x.reference === p.reference).length;
+        const s = p.reference && same === 1 ? stm.find((x) => x.provider_ref === p.reference) : null;
+        const status = same > 1 && p.reference ? "ambiguous" : !s ? "missing_statement" : s.gross === p.amount ? "matched" : "amount_diff";
+        upsert({ k: "payment_id", v: p.id }, { branch_id: o.branch_id, payment_id: p.id, statement_id: s?.id ?? null, status, expected: p.amount, received: s?.gross ?? null, diff: (s?.gross ?? 0) - p.amount, run_at: nowIso() });
+      }
+      for (const s of stm.filter((x) => x.settled_on >= p_from && x.settled_on <= p_to)) {
+        if (items.some((x) => x.statement_id === s.id)) continue;
+        if (db.payments.some((p) => p.tenant_id === t && p.method !== "cash" && p.reference === s.provider_ref)) continue;
+        upsert({ k: "statement_id", v: s.id }, { branch_id: null, payment_id: null, statement_id: s.id, status: "missing_payment", expected: null, received: s.gross, diff: s.gross, run_at: nowIso() });
+      }
+      const inRange = items.filter((x) => x.tenant_id === t && reconDate(x) >= p_from && reconDate(x) <= p_to);
+      const n = (st) => inRange.filter((x) => x.status === st).length;
+      const sum = { matched: n("matched"), amount_diff: n("amount_diff"), missing_statement: n("missing_statement"), missing_payment: n("missing_payment"), ambiguous: n("ambiguous"),
+        expected: inRange.reduce((a, x) => a + (x.expected ?? 0), 0), received: inRange.reduce((a, x) => a + (x.received ?? 0), 0),
+        diff: inRange.filter((x) => x.status !== "matched").reduce((a, x) => a + x.diff, 0) };
+      audit("recon_run", "payment_recon", `${p_from}..${p_to}`, sum, t);
+      return done(sum, []);
+    },
+    recon_report({ p_from, p_to, p_status = null }) {
+      need(12, "r");
+      if (!reconReader()) err("Akses ditolak: rekonsiliasi hanya untuk Owner, GM, dan Superadmin");
+      const t = user().tenant_id;
+      return (db.payment_recon ?? []).filter((x) => x.tenant_id === t && (!x.branch_id || branchOk(x.branch_id)) && (!p_status || x.status === p_status) && reconDate(x) >= p_from && reconDate(x) <= p_to)
+        .map((x) => {
+          const p = db.payments.find((y) => y.id === x.payment_id), o = db.orders.find((y) => y.id === p?.order_id), s = (db.recon_statements ?? []).find((y) => y.id === x.statement_id);
+          return { id: x.id, status: x.status, expected: x.expected, received: x.received, diff: x.diff, note: x.note, noted_at: x.noted_at, journal_id: x.journal_id, method: p?.method ?? null,
+            reference: p?.reference ?? s?.provider_ref ?? null, provider: s?.provider ?? null, fee: s?.fee ?? null, settled_on: s?.settled_on ?? null, paid_at: o?.paid_at ?? null,
+            order_code: o?.code ?? null, branch: db.branches.find((b) => b.id === x.branch_id)?.name ?? null };
+        });
+    },
+    recon_note({ p_id, p_note }) {
+      const t = reconWriter();
+      if (String(p_note ?? "").length > 500) err("Catatan maksimal 500 karakter");
+      const x = (db.payment_recon ?? []).find((y) => y.id === p_id && y.tenant_id === t);
+      if (!x) err("Baris rekonsiliasi tidak ditemukan");
+      Object.assign(x, { note: String(p_note ?? "").trim() || null, noted_by: user().id, noted_at: nowIso() });
+      audit("recon_note", "payment_recon", x.id, { status: x.status, diff: x.diff, note: x.note }, t);
+      return done({ id: x.id, note: x.note, noted_at: x.noted_at }, []);
+    },
+    recon_link_journal({ p_id, p_journal }) {
+      const t = reconWriter();
+      const j = db.journal_entries.find((y) => y.id === p_journal && y.tenant_id === t);
+      if (!j) err("Jurnal tidak ditemukan");
+      if (!["manual", "investment", "financing", "expense"].includes(j.source)) err("Hanya jurnal manual yang boleh ditautkan, bukan jurnal otomatis");
+      const x = (db.payment_recon ?? []).find((y) => y.id === p_id && y.tenant_id === t);
+      if (!x) err("Baris rekonsiliasi tidak ditemukan");
+      Object.assign(x, { journal_id: j.id, noted_by: user().id, noted_at: nowIso() });
+      audit("recon_link_journal", "payment_recon", x.id, { journal: j.id, source: j.source }, t);
+      return done({ id: x.id, journal_id: j.id }, []);
     },
     post_manual_journal({ p_branch, p_memo, p_source, p_lines }) {
       const t = branchGuard(p_branch);
