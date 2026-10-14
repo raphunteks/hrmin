@@ -108,11 +108,11 @@ Deno.serve(async (req) => {
         }),
       });
 
-      const { answer, totalTokens } = await parseLlmResponse(res);
       if (res.ok && answer) {
-        await sb.rpc("ai_record_usage", { p_tenant: profile.tenant_id, p_tokens: totalTokens || 100 });
-        await db.rpc("log_copilot", { p_question: question.trim(), p_answer: answer, p_tokens: totalTokens || null });
-        return json(req, { answer, snapshot_at: snap?.generated_at, model });
+        // Sistem Kuota: 1 pertanyaan sukses = 1 token kuota terpakai
+        await sb.rpc("ai_record_usage", { p_tenant: profile.tenant_id, p_tokens: 1 });
+        await db.rpc("log_copilot", { p_question: question.trim(), p_answer: answer, p_tokens: 1 });
+        return json(req, { answer, snapshot_at: snap?.generated_at, model, tokens_used: 1 });
       }
 
       lastError = `Model ${model} gagal (${res.status}): ${answer || "Jawaban kosong"}`;
