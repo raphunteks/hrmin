@@ -345,7 +345,7 @@ const fullHtml = `<!DOCTYPE html>
   ${parsedBody}
 
   <div class="footer-note">
-    Dokumen Arsitektur Sistem & Direktori Hak Akses RBAC Resmi · PT Harum Inovasi Digital · Dokumen Paripurna Versi 2.5
+    Dokumen Arsitektur Sistem & Direktori Hak Akses RBAC Resmi · PT Harum Inovasi Digital · Dokumen Paripurna Versi 2.6
   </div>
 </body>
 </html>

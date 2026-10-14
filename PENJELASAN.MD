@@ -1,6 +1,6 @@
 # DOKUMEN RBAC & FITUR LENGKAP PLATFORM HARUM.IN
 **Dokumen Arsitektur Hak Akses Berjenjang (Role-Based Access Control) & Direktori Fitur Paripurna**  
-*Versi: 2.5 (Super Big Upgrade) — Pembaruan Sistematis Terpadu*
+*Versi: 2.6 (Super Big Upgrade) — Pembaruan Sistematis Terpadu (Presensi Kamera Live, Geofencing, Multi-Cabang & Roster Shift)*
 
 ---
 
@@ -136,7 +136,9 @@ Pemilik bisnis kuliner, kafe, restoran, atau ritel yang memegang kendali strateg
      - Menyetujui selisih penyesuaian stok opname dan barang susut/waste.
   5. **Harum.in Capital & Payout (`/app/capital`)**: Mengajukan pinjaman modal usaha terintegrasi dan mengatur rekening pencairan dana settlement QRIS.
   6. **Laporan Hermes WhatsApp (`/app/hermes`)**: Pengaturan pengiriman ringkasan omzet otomatis setiap malam langsung ke nomor WhatsApp Owner.
-  7. **Manajemen Tim & Kebijakan Berjenjang (`/app/layanan/tim`, `/app/layanan/kebijakan`)**: Menentukan batas maksimal diskon kasir, toleransi void transaksi, dan radius GPS absensi geofencing.
+  7. **Manajemen Tim & Kebijakan Berjenjang (`/app/layanan/tim`, `/app/layanan/kebijakan`)**:
+     - Menentukan batas maksimal diskon kasir, toleransi void transaksi, dan radius GPS absensi geofencing.
+     - **Pendaftaran Karyawan & Penugasan Cabang**: Owner memiliki hak prerogatif mendaftarkan seluruh karyawan, mengangkat General Manager (GM) dengan hak pantau lintas cabang, serta menugaskan staf/kasir ke cabang spesifik (misal: Cabang Panakkukang atau Cabang Pettarani).
   8. **Manajemen Multi-Cabang Paripurna (`/app/cabang`)**:
      - Pendaftaran outlet/cabang baru secara mandiri dengan validasi kuota paket langganan (`plans.max_branches`).
      - **Inovasi 1-Click Branch Clone**: Kloning katalog produk, varian, dan resep bahan (BOM) dari cabang utama agar cabang baru langsung siap jualan dalam 1 detik.
@@ -150,6 +152,7 @@ Pemilik bisnis kuliner, kafe, restoran, atau ritel yang memegang kendali strateg
 Pemimpin operasional lapangan yang mengawasi operasional harian, dapur, gudang, staf kasir, dan akuntansi cabang.
 
 * **Tujuan Peran**: Menjaga efisiensi operasional cabang, menekan biaya susut/waste, dan memastikan standar pelayanan terpenuhi.
+* **Lingkup Kerja Multi-Cabang GM**: Akun GM memiliki `branch_id: null` (tidak terikat satu outlet fisik) sehingga leluasa berpindah dan memantau seluruh cabang milik tenant (Panakkukang, Pettarani, dsb.) secara operasional terpusat.
 * **Fitur Utama**:
   1. **Dashboard Operasional Cabang (`/app/dashboard`)**: Melihat performa penjualan per cabang, kecepatan layanan kasir, dan utilisasi meja.
   2. **Master Produk, Menu & Harga (`/app/produk`)**: Mengatur katalog makanan/minuman, menetapkan varian (ukuran, tingkat kepedasan, topping), dan harga jual cabang.
@@ -158,7 +161,10 @@ Pemimpin operasional lapangan yang mengawasi operasional harian, dapur, gudang, 
   5. **Pengadaan & Vendor Supplier (`/app/pembelian`)**: Membuat Purchase Order (PO) ke vendor pemasok bahan baku saat stok menipis mendekati reorder point.
   6. **Otorisasi Void & Diskon Cepat**: Menginput PIN Supervisor di layar POS kasir saat staf kasir meminta pembatalan transaksi salah input atau pemberian diskon khusus.
   7. **Akuntansi, Jurnal & Neraca PSAK (`/app/jurnal`, `/app/neraca`)**: Pencatatan pembukuan ganda (double-entry), penutupan buku kas harian, dan rekonsiliasi bank/QRIS.
-  8. **SDM, Jadwal Kerja & Payroll (`/app/karyawan`, `/app/payroll`)**: Mengatur roster jadwal kerja shift staf, menyetujui tukar shift, menghitung jam lembur, dan menyusun draf payroll gaji.
+  8. **SDM, Jadwal Kerja & Payroll (`/app/karyawan`, `/app/payroll`)**:
+     - Mengatur roster jadwal kerja shift staf per cabang (jam masuk & jam pulang), menyetujui permohonan tukar shift, menghitung jam lembur, dan menyusun draf payroll gaji.
+     - **Pendaftaran Staf Kasir Cabang (`/app/layanan/kasir`)**: GM berwenang mendaftarkan akun kasir/barista baru, memilih cabang penempatan staf, serta mengatur PIN otorisasi register kasir.
+     - **Inspeksi Foto Presensi**: GM dapat memverifikasi foto selfie presensi kamera staf beserta stempel digital watermark untuk memastikan keabsahan kehadiran di outlet.
 
 ---
 
@@ -166,6 +172,7 @@ Pemimpin operasional lapangan yang mengawasi operasional harian, dapur, gudang, 
 Garis depan pelayanan usaha yang berinteraksi langsung dengan pelanggan dan memproses pesanan di outlet.
 
 * **Tujuan Peran**: Melayani transaksi secara cepat dan akurat, menyiapkan pesanan, serta mencatat pergerakan fisik barang.
+* **Penempatan Cabang Terkunci**: Akun kasir/staf terikat secara spesifik pada satu outlet (`branch_id`, contoh: Cabang Panakkukang). Seluruh transaksi POS, laci kas kasir, opname stok, dan presensi absensi terkunci pada outlet tersebut.
 * **Fitur Utama**:
   1. **Register Transaksi Kasir POS (`/app/kasir`)**:
      - Antarmuka kasir layar sentuh ultra-cepat: navigasi kategori produk, pemilihan varian, catatan pesanan khusus (*less sugar*, tanpa es).
@@ -176,7 +183,11 @@ Garis depan pelayanan usaha yang berinteraksi langsung dengan pelanggan dan memp
   4. **Layar Antrean Dapur / Kitchen Display System (`/app/dapur`)**: Layar visual untuk barista/koki: melihat antrean tiket pesanan masuk, menandai "Sedang Dimasak", dan mengubah status menjadi "Siap Disajikan".
   5. **Kas Kecil Cabang (`/app/kas`)**: Menginput pengeluaran kas operasional mendesak (pembelian es batu darurat, air galon, parkir) disertai bukti foto struk.
   6. **Opname Fisik & Catatan Waste (`/app/opname`)**: Menghitung stok fisik bahan baku harian dan mencatat bahan yang rusak/kedaluwarsa.
-  7. **Absensi GPS Geofencing (`/app/absen`)**: Melakukan absensi clock-in dan clock-out dengan validasi radius lokasi GPS cabang.
+  7. **Presensi Kamera Live & Geofencing GPS Anti-Fraud (`/app/absen`)**:
+     - **Webcam Viewfinder & Oval Face Guide**: Melakukan clock-in dan clock-out menggunakan video kamera langsung dengan panduan bingkai wajah oval untuk hasil foto presisi.
+     - **Stempel Digital Watermark Permanen**: Sistem otomatis membubuhkan watermark permanen pada hasil jepretan (Nama Staf, Role, Cabang, Waktu Server WITA, Koordinat GPS, dan Jarak Radius Meter ke Outlet) untuk mencegah rekayasa/titip absen.
+     - **Deteksi Shift Hari Ini (`work_shifts`)**: Menampilkan jadwal shift kerja hari ini dan otomatis menghitung menit keterlambatan (*late minutes*) atau lembur (*overtime minutes*).
+     - **Persetujuan Biometrik & Lokasi (UU PDP)**: Dialog persetujuan pemrosesan data wajah dan geolokasi sesuai Undang-Undang Pelindungan Data Pribadi.
   8. **Komisi & Slip Gaji Pribadi (`/app/slip`)**: Kasir hanya dapat melihat riwayat absensi, rincian komisi penjualan pribadi, dan slip gaji miliknya sendiri (`scope: own`).
 
 ---
@@ -332,10 +343,25 @@ Berikut adalah rincian teknis 20 modul fitur matriks RBAC:
 * **Deskripsi**: Buku kas kecil (petty cash) cabang, pencatatan mutasi kas bank, serta rekonsiliasi pembayaran digital QRIS dinamis Pakasir vs laporan bank.
 * **Akses**: Superadmin (`CRUD`), GM (`CRUD`), Owner (`R`), Kasir/Staf (`Input Petty Cash Only`).
 
-### FITUR 13: MASTER KARYAWAN, SHIFT & GEOFENCING
+### FITUR 13: MASTER KARYAWAN, SHIFT & GEOFENCING (DENGAN KAMERA LIVE & WATERMARK)
 * **Kode Modul**: `F13` | **Kategori**: Sumber Daya Manusia (SDM)
-* **Deskripsi**: Basis data staf/karyawan, penugasan cabang, penyusunan jadwal kerja shift mingguan, dan pencatatan presensi GPS dengan batasan radius geofencing lokasi outlet.
-* **Akses**: Owner (`CRUD`), GM (`CRUD`), Superadmin (`CRUD`), Staf (`Absen GPS Masuk/Pulang Milik Sendiri`).
+* **Deskripsi**: Sistem presensi dan manajemen ketenagakerjaan berstandar enterprise yang menggabungkan verifikasi visual live kamera, validasi satelit GPS geofencing, dan otomasi jadwal kerja.
+* **Spesifikasi & Alur Inovasi**:
+  1. **Live Camera Webcam Viewfinder & Oval Guide**: Staf mengarahkan wajah ke dalam bingkai oval panduan pada kamera live perangkat (ponsel/tablet/laptop) untuk memastikan posisi wajah optimal dan bebas rekayasa.
+  2. **Stempel Digital Watermark Permanen (Anti-Fraud)**: Snapshot foto langsung dibubuhi pita watermark tamper-proof di lapisan kanvas gambar:
+     - Nama Staf & Jabatan (Kasir, Barista, Staf Gudang).
+     - Nama Cabang Penugasan (misal: Harum.in Panakkukang).
+     - Waktu & Tanggal Presisi Server (WITA).
+     - Koordinat GPS (Latitude, Longitude) dan kalkulasi jarak radius meter ke titik pusat outlet.
+  3. **Geofencing GPS Validasi Jarak Radius (10–1000m)**: Koordinat GPS staf divalidasi dengan rumus Haversine terhadap koordinat cabang yang diatur Owner di `/app/cabang`. Absen ditolak otomatis jika staf berada di luar radius aman outlet.
+  4. **Sinkronisasi Roster Shift Kerja (`work_shifts`)**:
+     - Sistem mendeteksi jadwal kerja staf untuk tanggal berjalan.
+     - Otomatis mencatat menit keterlambatan (`late_min > 0`) jika clock-in melebihi jam mulai shift (toleransi 5 menit).
+     - Otomatis mencatat menit lembur (`overtime_min > 0`) jika clock-out melewati jam selesai shift (toleransi 15 menit), yang langsung mengalir ke perhitungan uang lembur di modul Payroll.
+  5. **Modal Inspeksi Pratinjau Foto untuk Owner & GM**:
+     - Di log riwayat presensi, Owner dan GM dapat mengklik foto selfie staf untuk membuka modal resolusi tinggi dan memverifikasi stempel watermark, stempel waktu, serta keaslian kehadiran.
+  6. **Kepatuhan Privasi (UU PDP)**: Consent gate persetujuan eksplisit karyawan atas pemrosesan data wajah dan geolokasi sebelum kamera dan GPS diaktifkan.
+* **Akses**: Owner (`CRUD`), GM (`CRUD`), Superadmin (`CRUD`), Staf (`Absen Kamera & GPS Masuk/Pulang Milik Sendiri`).
 
 ### FITUR 14: PAYROLL, KOMISI & KASBON KARYAWAN
 * **Kode Modul**: `F14` | **Kategori**: Penggajian & Remunerasi
@@ -403,9 +429,23 @@ Seluruh pembaruan sistem dieksekusi dengan prinsip **Zero Regression** (tidak me
   - `owner_update_branch`: Memperbarui data alamat, titik GPS geofence, dan fungsi gudang/outlet.
   - `owner_branch_overview`: Menyajikan rekapitulasi data cabang, omzet harian, jumlah staf, dan sisa kuota paket.
 
-### 5. Status Pengujian & Build
+### 5. Presensi Kamera Live & Stempel Digital Watermark Anti-Fraud (Fitur 13)
+- **WebRTC Camera Stream**: Integrasi penangkapan video langsung `navigator.mediaDevices.getUserMedia` dengan cermin natural (*mirror mode*) dan panduan bingkai wajah oval (*oval face alignment guide*).
+- **Watermark Stamp Permanen**: Merender teks metadata resmi (Nama, Role, Cabang, Timestamp WITA, GPS Koordinat, Jarak Meter) langsung ke atas `<canvas>` 640×480 sebelum dikonversi menjadi data JPEG permanen anti-rekayasa.
+- **Modal Pratinjau Foto Resolusi Tinggi**: Memungkinkan Owner & GM menginspeksi foto selfie karyawan dengan detail verifikasi radius geofencing dan stempel digital.
+- **UU PDP Consent Gate**: Penyimpanan stempel persetujuan pemrosesan foto biometrik dan geolokasi karyawan via RPC `give_attendance_consent`.
+
+### 6. Integrasi Roster Shift Kerja & Otomasi Hitung Keterlambatan/Lembur
+- **Penugasan Multi-Cabang**: GM berstatus multi-cabang (`branch_id: null`), sedangkan Staf/Kasir terikat ke outlet spesifik (Panakkukang/Pettarani).
+- **Pendaftaran Akun Staf**: Owner dapat menambah staf di `/app/layanan/tim`, dan GM dapat mendaftarkan kasir baru di `/app/layanan/kasir`.
+- **Kalkulasi Otomatis di RPC `clock`**:
+  - Mencocokkan waktu absensi dengan jadwal kerja shift hari ini (`work_shifts`).
+  - Menghitung `late_min` jika jam masuk > `start_time` (+ toleransi 5 menit).
+  - Menghitung `overtime_min` jika jam pulang > `end_time` (+ toleransi 15 menit), yang terintegrasi langsung dengan modul penggajian (Payroll).
+
+### 7. Status Pengujian & Build
 - **Unit Testing**: 7 dari 7 suite pengujian (`npm test`) berstatus **LULUS (100%)**.
-- **Production Bundle**: `npm run build` sukses dalam 1.37 detik tanpa peringatan linting.
+- **Production Bundle**: `npm run build` sukses dalam hitungan detik tanpa peringatan linting.
 
 ---
 *Dokumen ini merupakan pedoman resmi hak akses (RBAC) dan arsitektur fitur Platform Harum.in.*

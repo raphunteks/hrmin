@@ -962,11 +962,28 @@ export function createOps(ctx) {
       if (ten?.attendance_selfie_required && !p_selfie) err("Selfie wajib untuk absen di tenant ini");
       if (p_selfie && !me?.attendance_consent_at) err("Setujui dulu penggunaan foto selfie untuk absensi (UU PDP)");
       const today = new Date().toDateString();
+      const todayIso = new Date().toISOString().slice(0, 10);
       const last = db.attendance.find((x) => x.profile_id === user().id && new Date(x.created_at).toDateString() === today);
       if (p_kind === "in" && last?.kind === "in") err("Anda sudah absen masuk hari ini. Absen pulang dulu.");
       if (p_kind === "out" && (last?.kind ?? "out") === "out") err("Belum ada absen masuk yang terbuka hari ini");
+      const w = db.work_shifts?.find((x) => x.profile_id === user().id && x.work_date === todayIso);
+      let late_min = 0;
+      let overtime_min = 0;
+      if (w) {
+        const now = new Date();
+        const currentMin = now.getHours() * 60 + now.getMinutes();
+        if (p_kind === "in" && w.start_time) {
+          const [sh, sm] = w.start_time.split(":").map(Number);
+          const shiftStartMin = sh * 60 + sm;
+          if (currentMin > shiftStartMin + 5) late_min = currentMin - shiftStartMin;
+        } else if (p_kind === "out" && w.end_time) {
+          const [eh, em] = w.end_time.split(":").map(Number);
+          const shiftEndMin = eh * 60 + em;
+          if (currentMin > shiftEndMin + 15) overtime_min = currentMin - shiftEndMin;
+        }
+      }
       const a = { id: id(), tenant_id: b.tenant_id, branch_id: b.id, profile_id: user().id, kind: p_kind, lat: p_lat, lng: p_lng, distance_m: Math.round(d),
-        accuracy_m: p_accuracy, selfie_path: p_selfie, late_min: 0, overtime_min: 0, created_at: nowIso() };
+        accuracy_m: p_accuracy, selfie_path: p_selfie, late_min, overtime_min, created_at: nowIso() };
       db.attendance.unshift(a);
       return done(structuredClone(a), ["attendance"]);
     },

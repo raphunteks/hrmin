@@ -417,6 +417,7 @@ export function createAccess(ctx) {
 export function seedRoster(db) {
   const rnd = (() => { let a = 7; return () => { a = (a * 1664525 + 1013904223) % 4294967296; return a / 4294967296; }; })();
   const day = (n) => new Date(Date.now() - n * DAY);
+  db.work_shifts.push({ id: "rw0", tenant_id: T1, branch_id: B1, profile_id: "u3", work_date: new Date().toISOString().slice(0, 10), start_time: "08:00:00", end_time: "16:00:00" });
   for (let n = 1; n <= 10; n++) {
     const d = day(n), date = d.toISOString().slice(0, 10);
     db.work_shifts.push({ id: `rw${n}`, tenant_id: T1, branch_id: B1, profile_id: "u3", work_date: date, start_time: "08:00:00", end_time: "16:00:00" });
