@@ -32,17 +32,18 @@ export default function Pos() {
 
   const data = useAsync(async () => {
     if (!b.branchId) return null;
+    const tId = tenant?.id || b.branch?.tenant_id;
     const [tables, products, orders, shifts, recent] = await Promise.all([
-      api.list("tables", { eq: { branch_id: b.branchId }, order: ["sort"] }),
-      api.list("products", { order: ["name"] }),
-      api.list("orders", { eq: { branch_id: b.branchId, status: "open" }, order: ["created_at"] }),
-      api.list("shifts", { eq: { branch_id: b.branchId, status: "open" } }),
-      api.list("orders", { eq: { branch_id: b.branchId, status: "paid" }, order: ["paid_at", "desc"], limit: 8 }),
+      api.list("tables", { eq: { ...(tId ? { tenant_id: tId } : {}), branch_id: b.branchId }, order: ["sort"] }),
+      api.list("products", { eq: tId ? { tenant_id: tId } : {}, order: ["name"] }),
+      api.list("orders", { eq: { ...(tId ? { tenant_id: tId } : {}), branch_id: b.branchId, status: "open" }, order: ["created_at"] }),
+      api.list("shifts", { eq: { ...(tId ? { tenant_id: tId } : {}), branch_id: b.branchId, status: "open" } }),
+      api.list("orders", { eq: { ...(tId ? { tenant_id: tId } : {}), branch_id: b.branchId, status: "paid" }, order: ["paid_at", "desc"], limit: 8 }),
     ]);
     const ids = orders.map((o) => o.id);
     const items = ids.length ? await api.list("order_items", { inList: ["order_id", ids], order: ["created_at"] }) : [];
     return { tables, products, orders, items, myShift: shifts.find((s) => s.cashier_id === profile.id), recent };
-  }, [api, b.branchId]);
+  }, [api, b.branchId, tenant?.id, b.branch?.tenant_id]);
   useLive(["tables", "orders", "order_items", "products"], data.reload);
 
   useGSAP(() => {

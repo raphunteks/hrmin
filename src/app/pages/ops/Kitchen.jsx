@@ -17,13 +17,14 @@ export default function Kitchen() {
   const a = useAction();
   const r = useAsync(async () => {
     if (!b.branchId) return null;
+    const tId = b.branch?.tenant_id;
     const [items, orders, products] = await Promise.all([
-      api.list("order_items", { eq: { branch_id: b.branchId }, inList: ["kitchen_status", ["new", "cooking", "ready"]], order: ["created_at"] }),
-      api.list("orders", { eq: { branch_id: b.branchId }, inList: ["status", ["open", "paid"]], order: ["created_at", "desc"], limit: 200 }),
-      api.list("products", { order: ["name"] }),
+      api.list("order_items", { eq: { ...(tId ? { tenant_id: tId } : {}), branch_id: b.branchId }, inList: ["kitchen_status", ["new", "cooking", "ready"]], order: ["created_at"] }),
+      api.list("orders", { eq: { ...(tId ? { tenant_id: tId } : {}), branch_id: b.branchId }, inList: ["status", ["open", "paid"]], order: ["created_at", "desc"], limit: 200 }),
+      api.list("products", { eq: tId ? { tenant_id: tId } : {}, order: ["name"] }),
     ]);
     return { items, orders, products };
-  }, [api, b.branchId]);
+  }, [api, b.branchId, b.branch?.tenant_id]);
   useLive(["order_items", "products"], r.reload);
 
   const tickets = useMemo(() => {
