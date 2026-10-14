@@ -65,6 +65,8 @@ export const PAGES = [
     gate: (r) => can(r, 2, "r"), Comp: lazy(() => import("./pages/owner/Hermes.jsx")) },
   { path: "/app/crm", label: "Pelanggan & poin", group: "Bisnis", code: "F15", tenant: true,
     gate: (r) => can(r, 15, "r"), Comp: lazy(() => import("./pages/ops/Crm.jsx")) },
+  { path: "/app/cabang", label: "Kelola cabang", group: "Bisnis", code: "F1·Cabang", tenant: true,
+    gate: (r) => isOwner(r), Comp: lazy(() => import("./pages/owner/Branches.jsx")) },
 
   // Klinik — Dokter (FASE 3). Hanya untuk tenant berjenis layanan kesehatan.
   { path: "/app/pemeriksaan", label: "Pemeriksaan (RME)", group: "Klinik", code: "F17", tenant: true, pillars: ["health"],

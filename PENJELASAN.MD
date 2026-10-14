@@ -137,6 +137,12 @@ Pemilik bisnis kuliner, kafe, restoran, atau ritel yang memegang kendali strateg
   5. **Harum.in Capital & Payout (`/app/capital`)**: Mengajukan pinjaman modal usaha terintegrasi dan mengatur rekening pencairan dana settlement QRIS.
   6. **Laporan Hermes WhatsApp (`/app/hermes`)**: Pengaturan pengiriman ringkasan omzet otomatis setiap malam langsung ke nomor WhatsApp Owner.
   7. **Manajemen Tim & Kebijakan Berjenjang (`/app/layanan/tim`, `/app/layanan/kebijakan`)**: Menentukan batas maksimal diskon kasir, toleransi void transaksi, dan radius GPS absensi geofencing.
+  8. **Manajemen Multi-Cabang Paripurna (`/app/cabang`)**:
+     - Pendaftaran outlet/cabang baru secara mandiri dengan validasi kuota paket langganan (`plans.max_branches`).
+     - **Inovasi 1-Click Branch Clone**: Kloning katalog produk, varian, dan resep bahan (BOM) dari cabang utama agar cabang baru langsung siap jualan dalam 1 detik.
+     - Konfigurasi titik koordinat GPS Latitude & Longitude serta radius Geofencing (10–1000m) untuk validasi presensi absensi staf.
+     - Pengaturan fungsi cabang: **Outlet Penjualan POS** (meja, dapur KDS) vs **Gudang Bahan Sentral / Central Kitchen**.
+     - Skor performa cabang real-time: Omzet harian, jumlah transaksi, dan penugasan staf aktif per cabang.
 
 ---
 
@@ -390,9 +396,16 @@ Seluruh pembaruan sistem dieksekusi dengan prinsip **Zero Regression** (tidak me
 - Engine pembayaran QRIS terhubung langsung ke API Pakasir v2 (`app.pakasir.com/api/v2`).
 - Webhook notifikasi status transaksi otomatis memperbarui status pembayaran di tabel POS dan member portal secara instan.
 
-### 4. Status Pengujian & Build
+### 4. Sistem Manajemen Multi-Cabang Mandiri untuk Owner (Migrasi 31)
+- **Tabel & RLS**: Kebijakan `branches_owner_update` memberikan hak update cabang milik tenant sendiri.
+- **Fungsi RPC Berkeamanan Tinggi (`SECURITY DEFINER`)**:
+  - `owner_create_branch`: Memvalidasi kuota `max_branches` paket, menyisipkan cabang baru, dan opsi kloning katalog.
+  - `owner_update_branch`: Memperbarui data alamat, titik GPS geofence, dan fungsi gudang/outlet.
+  - `owner_branch_overview`: Menyajikan rekapitulasi data cabang, omzet harian, jumlah staf, dan sisa kuota paket.
+
+### 5. Status Pengujian & Build
 - **Unit Testing**: 7 dari 7 suite pengujian (`npm test`) berstatus **LULUS (100%)**.
-- **Production Bundle**: `npm run build` sukses dalam 1.24 detik tanpa peringatan linting.
+- **Production Bundle**: `npm run build` sukses dalam 1.37 detik tanpa peringatan linting.
 
 ---
 *Dokumen ini merupakan pedoman resmi hak akses (RBAC) dan arsitektur fitur Platform Harum.in.*

@@ -78,6 +78,29 @@ export const api = {
 
   // ── Bisnis ──
   listBranches: async (tenantId) => ok(await supabase.from("branches").select("id, name, city, is_warehouse").eq("tenant_id", tenantId).order("name")),
+  ownerBranchOverview: async () => ok(await supabase.rpc("owner_branch_overview")),
+  createBranch: async (params) => ok(await supabase.rpc("owner_create_branch", {
+    p_name: params.name,
+    p_city: params.city || null,
+    p_address: params.address || null,
+    p_lat: params.lat ? Number(params.lat) : null,
+    p_lng: params.lng ? Number(params.lng) : null,
+    p_geofence_m: params.geofence_m ? Number(params.geofence_m) : 50,
+    p_is_warehouse: Boolean(params.is_warehouse),
+    p_clone_from: params.clone_from || null,
+    p_satusehat: params.satusehat_location_id || null,
+  })),
+  updateBranch: async (id, params) => ok(await supabase.rpc("owner_update_branch", {
+    p_branch_id: id,
+    p_name: params.name,
+    p_city: params.city || null,
+    p_address: params.address || null,
+    p_lat: params.lat ? Number(params.lat) : null,
+    p_lng: params.lng ? Number(params.lng) : null,
+    p_geofence_m: params.geofence_m ? Number(params.geofence_m) : 50,
+    p_is_warehouse: Boolean(params.is_warehouse),
+    p_satusehat: params.satusehat_location_id || null,
+  })),
   dashboardDaily: async ({ from, to, tenantId, branchId }) =>
     ok(await supabase.rpc("dashboard_daily", { p_from: from, p_to: to, p_tenant: tenantId ?? null, p_branch: branchId ?? null })),
   profitLoss: async ({ from, to, tenantId }) =>

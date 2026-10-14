@@ -392,6 +392,79 @@ export const api = {
     const t = isSA() ? tenantId : currentUser.tenant_id;
     return delay(load().branches.filter((b) => b.tenant_id === t));
   },
+  async ownerBranchOverview() {
+    need(1, "r");
+    const t = currentUser.tenant_id;
+    const { branches, profiles = [], orders = [], plans, tenants } = load();
+    const tenant = tenants.find((x) => x.id === t);
+    const plan = plans.find((p) => p.id === tenant?.plan_id) || { max_branches: 5, name: "Growth (demo)" };
+    const myBranches = branches.filter((b) => b.tenant_id === t).map((b) => {
+      const staffCount = profiles.filter((p) => p.tenant_id === t && p.branch_id === b.id).length;
+      const today = iso(new Date());
+      const todayOrders = orders.filter((o) => o.branch_id === b.id && o.created_at?.slice(0, 10) === today);
+      const todaySales = todayOrders.filter((o) => o.status === "paid").reduce((s, o) => s + (o.total || 0), 0);
+      return {
+        ...b,
+        staff_count: staffCount,
+        today_orders: todayOrders.length,
+        today_sales: todaySales,
+      };
+    });
+    return delay({
+      quota: {
+        used: myBranches.length,
+        max: plan.max_branches ?? 5,
+        plan_name: plan.name ?? "Growth",
+      },
+      branches: myBranches,
+    });
+  },
+  async createBranch(params) {
+    need(1, "u");
+    const t = currentUser.tenant_id;
+    const { branches, plans, tenants } = load();
+    const tenant = tenants.find((x) => x.id === t);
+    const plan = plans.find((p) => p.id === tenant?.plan_id) || { max_branches: 5, name: "Growth" };
+    const currentCount = branches.filter((b) => b.tenant_id === t).length;
+    if (currentCount >= (plan.max_branches ?? 5)) {
+      throw new Error(`Batas kuota cabang (${plan.max_branches}) untuk paket ${plan.name} telah tercapai.`);
+    }
+    const newBranch = {
+      id: id(),
+      tenant_id: t,
+      name: params.name.trim(),
+      city: params.city || null,
+      address: params.address || null,
+      lat: params.lat ? Number(params.lat) : null,
+      lng: params.lng ? Number(params.lng) : null,
+      geofence_m: params.geofence_m ? Number(params.geofence_m) : 50,
+      is_warehouse: Boolean(params.is_warehouse),
+      satusehat_location_id: params.satusehat_location_id || null,
+      created_at: nowIso(),
+    };
+    branches.push(newBranch);
+    save();
+    return delay(newBranch);
+  },
+  async updateBranch(branchId, params) {
+    need(1, "u");
+    const t = currentUser.tenant_id;
+    const { branches } = load();
+    const b = branches.find((x) => x.id === branchId && x.tenant_id === t);
+    if (!b) throw new Error("Cabang tidak ditemukan.");
+    Object.assign(b, {
+      name: params.name ? params.name.trim() : b.name,
+      city: params.city !== undefined ? params.city : b.city,
+      address: params.address !== undefined ? params.address : b.address,
+      lat: params.lat ? Number(params.lat) : b.lat,
+      lng: params.lng ? Number(params.lng) : b.lng,
+      geofence_m: params.geofence_m ? Number(params.geofence_m) : b.geofence_m,
+      is_warehouse: params.is_warehouse !== undefined ? Boolean(params.is_warehouse) : b.is_warehouse,
+      satusehat_location_id: params.satusehat_location_id !== undefined ? params.satusehat_location_id : b.satusehat_location_id,
+    });
+    save();
+    return delay(b);
+  },
   async dashboardDaily({ from, to, tenantId, branchId }) {
     need(2, "r");
     const t = tenantOf(tenantId);
