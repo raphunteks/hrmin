@@ -4,6 +4,8 @@ import { json, corsHeaders } from "../_shared/cors.ts";
 import { userContext, admin } from "../_shared/auth.ts";
 import { rateLimit } from "../_shared/redis.ts";
 
+declare const Deno: any;
+
 async function parseLlmResponse(res: Response): Promise<{ choices: any[]; usage?: any; model?: string; rawText: string }> {
   const text = await res.text();
   // 1. Coba parse JSON langsung
@@ -42,7 +44,7 @@ async function parseLlmResponse(res: Response): Promise<{ choices: any[]; usage?
   };
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   const ctx = await userContext(req);
   if (!ctx) return json(req, { error: "Tidak terautentikasi" }, 401);

@@ -5,6 +5,8 @@ import { json, corsHeaders } from "../_shared/cors.ts";
 import { userContext, admin } from "../_shared/auth.ts";
 import { rateLimit } from "../_shared/redis.ts";
 
+declare const Deno: any;
+
 const SYSTEM = `Anda analis bisnis untuk pemilik usaha. Jawab singkat dalam Bahasa Indonesia.
 Gunakan HANYA angka pada DATA. Jika data tidak cukup, katakan tidak tahu. Jangan memberi saran hukum/pajak/medis.
 Tandai asumsi, dan beri maksimal 3 tindakan konkret.`;
@@ -45,7 +47,7 @@ async function parseLlmResponse(res: Response): Promise<{ answer: string; totalT
   return { answer: answer.trim(), totalTokens };
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   const ctx = await userContext(req);
   if (!ctx) return json(req, { error: "Tidak terautentikasi" }, 401);
@@ -107,6 +109,8 @@ Deno.serve(async (req) => {
           temperature: 0.3,
         }),
       });
+
+      const { answer } = await parseLlmResponse(res);
 
       if (res.ok && answer) {
         // Sistem Kuota: 1 pertanyaan sukses = 1 token kuota terpakai
