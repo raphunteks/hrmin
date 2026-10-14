@@ -415,6 +415,7 @@
 
 /* ───────── Table ───────── */
 .d-table-wrap { overflow-x: auto; margin: calc(var(--space-md) * -1); }
+.d-table-wrap--contained { margin: 0 !important; }
 .d-panel > .d-table-wrap:only-child { margin: calc(var(--space-md) * -1); }
 .d-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
 .d-table th, .d-table td { text-align: left; padding: 0.625rem var(--space-md); border-bottom: var(--rule-hair) solid var(--color-rule); vertical-align: middle; }

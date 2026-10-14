@@ -263,34 +263,82 @@ export default function Copilot() {
             />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <input
-                  type="search"
-                  placeholder="Cari riwayat pertanyaan atau jawaban..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "0.75rem",
+                  paddingBottom: "0.25rem",
+                }}
+              >
+                <div
                   style={{
-                    maxWidth: "24rem",
+                    position: "relative",
                     width: "100%",
-                    padding: "0.4rem 0.75rem",
-                    fontSize: "0.875rem",
-                    border: "1px solid var(--color-rule, #cbd5e1)",
-                    borderRadius: "var(--radius-sm, 6px)",
+                    maxWidth: "26rem",
+                    display: "flex",
+                    alignItems: "center",
                   }}
-                />
+                >
+                  <svg
+                    style={{
+                      position: "absolute",
+                      left: "0.75rem",
+                      width: "15px",
+                      height: "15px",
+                      color: "var(--color-muted, #94a3b8)",
+                      pointerEvents: "none",
+                    }}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                  <input
+                    type="search"
+                    placeholder="Cari riwayat pertanyaan atau jawaban..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "0.5rem 0.75rem 0.5rem 2.25rem",
+                      fontSize: "0.875rem",
+                      border: "1px solid var(--color-rule, #cbd5e1)",
+                      borderRadius: "var(--radius-md, 8px)",
+                      background: "var(--color-paper, #ffffff)",
+                      color: "var(--color-ink, #0f172a)",
+                      boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                    }}
+                  />
+                </div>
                 {search && (
                   <button
                     type="button"
                     className="d-btn d-btn--subtle"
-                    style={{ fontSize: "0.75rem", padding: "0.3rem 0.6rem" }}
+                    style={{ fontSize: "0.75rem", padding: "0.35rem 0.75rem", borderRadius: "var(--radius-sm, 6px)" }}
                     onClick={() => setSearch("")}
                   >
-                    Reset Filter
+                    Reset Filter ({filteredLogs.length} hasil)
                   </button>
                 )}
               </div>
 
-              <div className="d-table-wrap" style={{ borderRadius: "var(--radius-md, 8px)", border: "1px solid var(--color-rule, #e2e8f0)" }}>
+              <div
+                className="d-table-wrap d-table-wrap--contained"
+                style={{
+                  margin: "0",
+                  borderRadius: "var(--radius-md, 8px)",
+                  border: "1px solid var(--color-rule, #e2e8f0)",
+                  overflowX: "auto",
+                }}
+              >
                 <table className="d-table" style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ background: "var(--color-paper-2, #f1f5f9)" }}>
